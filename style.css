@@ -181,6 +181,27 @@ select {
     color: var(--accent-color);
 }
 
+.modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    padding: 20px;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.modal input {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    border: 1px solid #e5e5ea;
+    border-radius: 12px;
+    background-color: #f2f2f7;
+}
+
+
 .tab-item .icon {
     font-size: 24px;
     margin-bottom: 4px;
