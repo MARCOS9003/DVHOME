@@ -1,3 +1,4 @@
+// Tu URL real configurada
 const API_URL = "https://script.google.com/macros/s/AKfycbxZ0ZUpiwGT-_c67PJM6mOEkr_e6zrQf3RCUbc7EyP2QtaWLoH-PImuysHbSM9eHeoOsQ/exec";
 const DEFAULT_USERS = ["Marcos", "Jimena", "Mamá", "Papá", "Patricia"];
 
@@ -23,6 +24,16 @@ let miUsuario = localStorage.getItem('dvhome_mi_usuario') || "Marcos";
 document.addEventListener('DOMContentLoaded', () => {
     initSelects();
     cargarDatosDesdeGoogle();
+    
+    // Selector dinámico de turno de perro
+    document.getElementById('select-tarea').addEventListener('change', (e) => {
+        const groupTurno = document.getElementById('group-turno');
+        if (e.target.value === 'Pasear perro') {
+            groupTurno.style.display = 'block';
+        } else {
+            groupTurno.style.display = 'none';
+        }
+    });
 });
 
 async function cargarDatosDesdeGoogle() {
@@ -36,14 +47,15 @@ async function cargarDatosDesdeGoogle() {
                 fecha: row[1],
                 tarea: row[2],
                 persona: row[3],
-                puntos: Number(row[4])
+                puntos: Number(row[4]),
+                turno: row[5] || "" 
             })).reverse(); 
             
             localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
             renderAll();
         }
     } catch (error) {
-        console.error("Error al cargar datos online, cargando caché local:", error);
+        console.error("Error online, cargando caché local:", error);
         registros = JSON.parse(localStorage.getItem('dvhome_registros_cache')) || [];
         renderAll();
     }
@@ -113,6 +125,8 @@ function actualizarDesplegableTareas() {
         optDetalle.textContent = task.nombre;
         selectDetalleTarea.appendChild(optDetalle);
     });
+    
+    selectTarea.dispatchEvent(new Event('change'));
 }
 
 document.getElementById('form-tarea').addEventListener('submit', async (e) => {
@@ -122,6 +136,7 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
     const fechaManual = document.getElementById('input-fecha').value;
     const tareaInfo = tareas.find(t => t.nombre === tareaNombre);
     
+    const turnoSeleccionado = (tareaNombre === 'Pasear perro') ? document.getElementById('select-turno').value : "";
     const fechaRegistro = fechaManual ? new Date(fechaManual).toISOString() : new Date().toISOString();
 
     const nuevoRegistro = {
@@ -129,14 +144,15 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
         fecha: fechaRegistro,
         persona: persona,
         tarea: tareaNombre,
-        puntos: Number(tareaInfo.puntos)
+        puntos: Number(tareaInfo.puntos),
+        turno: turnoSeleccionado
     };
     
     registros.unshift(nuevoRegistro);
     localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
     
-    // Limpiar el campo de fecha tras enviar
     document.getElementById('input-fecha').value = "";
+    document.getElementById('select-turno').value = "Mañana";
     
     renderAll();
     navigate('view-ranking', document.querySelectorAll('.tab-item')[0]);
@@ -148,7 +164,7 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
             body: JSON.stringify({ tipo: 'nuevo_registro', ...nuevoRegistro })
         });
     } catch (error) {
-        console.error("Error al guardar en la nube:", error);
+        console.error("Error guardando en la nube:", error);
     }
 });
 
@@ -173,7 +189,23 @@ function renderDetalles() {
     
     const regs = registros.filter(r => r.tarea === tareaObj);
     
-    // Recuento Total (Ranking por tarea)
+    document.getElementById('det-total-veces').textContent = regs.length;
+    
+    if(regs.length > 0) {
+        const ultimaFecha = new Date(regs[0].fecha);
+        const diasPasados = Math.floor((new Date() - ultimaFecha) / (1000 * 60 * 60 * 24));
+        
+        let textoUltima = "";
+        if (diasPasados === 0) textoUltima = "Hoy";
+        else if (diasPasados === 1) textoUltima = "Ayer";
+        else textoUltima = `Hace ${diasPasados} días`;
+        
+        document.getElementById('det-ultima-vez').textContent = textoUltima;
+        document.getElementById('det-ultima-vez').style.fontSize = "20px";
+    } else {
+        document.getElementById('det-ultima-vez').textContent = "--";
+    }
+    
     let counts = {};
     DEFAULT_USERS.forEach(u => counts[u] = 0);
     regs.forEach(r => counts[r.persona]++);
@@ -185,20 +217,23 @@ function renderDetalles() {
     const contenedorRank = document.getElementById('detalle-ranking');
     contenedorRank.innerHTML = '';
     
-    rankingTarea.forEach(user => {
+    rankingTarea.forEach((user, index) => {
         if (user.total > 0) {
             const div = document.createElement('div');
             div.className = 'list-item';
-            div.innerHTML = `<div class="item-main">${user.nombre}</div><div class="item-score" style="color:var(--text-primary); font-size: 16px;">${user.total} veces</div>`;
+            let medalla = index === 0 ? '👑' : '';
+            div.innerHTML = `
+                <div class="item-main">${medalla} ${user.nombre}</div>
+                <div class="item-score" style="color:var(--text-primary); font-size: 16px;">${user.total} veces</div>
+            `;
             contenedorRank.appendChild(div);
         }
     });
     
     if (contenedorRank.innerHTML === '') {
-        contenedorRank.innerHTML = '<div class="list-item"><span class="item-main" style="color:var(--text-secondary);">Nadie ha registrado esta tarea todavía.</span></div>';
+        contenedorRank.innerHTML = '<div class="list-item"><span class="item-main" style="color:var(--text-secondary);">Nadie la ha realizado todavía.</span></div>';
     }
 
-    // Registro Histórico Específico
     const contenedorHist = document.getElementById('detalle-historial');
     contenedorHist.innerHTML = '';
     
@@ -208,23 +243,52 @@ function renderDetalles() {
         regs.forEach(reg => {
             const div = document.createElement('div');
             div.className = 'list-item';
+            
             let fechaFormat = "Fecha desconocida";
             try {
                 const fechaObj = new Date(reg.fecha);
-                if (!isNaN(fechaObj)) {
-                    fechaFormat = fechaObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
-                }
+                if (!isNaN(fechaObj)) fechaFormat = fechaObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
             } catch (e) {}
+
+            const turnoBadge = reg.turno ? `<span class="badge-turno">${reg.turno}</span>` : "";
 
             div.innerHTML = `
                 <div>
-                    <div class="item-main">${reg.persona}</div>
+                    <div class="item-main">${reg.persona} ${turnoBadge}</div>
                     <div class="item-sub">${fechaFormat}</div>
                 </div>
             `;
             contenedorHist.appendChild(div);
         });
     }
+}
+
+function renderHistorial() {
+    const contenedor = document.getElementById('historial-list');
+    contenedor.innerHTML = '';
+    if (registros.length === 0) return contenedor.innerHTML = '<div class="list-item"><span class="item-main">Aún no hay tareas.</span></div>';
+
+    registros.forEach(reg => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        
+        let fechaFormat = "Fecha desconocida";
+        try {
+            const fechaObj = new Date(reg.fecha);
+            if (!isNaN(fechaObj)) fechaFormat = fechaObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
+        } catch (e) {}
+
+        const turnoBadge = reg.turno ? `<span class="badge-turno">${reg.turno}</span>` : "";
+
+        div.innerHTML = `
+            <div>
+                <div class="item-main">${reg.tarea} ${turnoBadge}</div>
+                <div class="item-sub">${reg.persona} • ${fechaFormat}</div>
+            </div>
+            <div class="item-score" style="color:#8e8e93; font-size: 14px;">+${reg.puntos}</div>
+        `;
+        contenedor.appendChild(div);
+    });
 }
 
 function renderSugerencias() {
@@ -265,34 +329,6 @@ function renderSugerencias() {
             contenedor.appendChild(div);
         });
     }
-}
-
-function renderHistorial() {
-    const contenedor = document.getElementById('historial-list');
-    contenedor.innerHTML = '';
-    if (registros.length === 0) return contenedor.innerHTML = '<div class="list-item"><span class="item-main">Aún no hay tareas registradas.</span></div>';
-
-    registros.forEach(reg => {
-        const div = document.createElement('div');
-        div.className = 'list-item';
-        
-        let fechaFormat = "Fecha desconocida";
-        try {
-            const fechaObj = new Date(reg.fecha);
-            if (!isNaN(fechaObj)) {
-                fechaFormat = fechaObj.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
-            }
-        } catch (e) {}
-
-        div.innerHTML = `
-            <div>
-                <div class="item-main">${reg.tarea}</div>
-                <div class="item-sub">${reg.persona} • ${fechaFormat}</div>
-            </div>
-            <div class="item-score" style="color:#8e8e93; font-size: 14px;">+${reg.puntos}</div>
-        `;
-        contenedor.appendChild(div);
-    });
 }
 
 function renderRanking() {
