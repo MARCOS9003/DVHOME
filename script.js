@@ -26,10 +26,7 @@ let registros = [];
 let miUsuario = localStorage.getItem('dvhome_mi_usuario') || "Marcos";
 
 document.addEventListener('DOMContentLoaded', () => {
-    initSelects();
-    cargarDatosDesdeGoogle();
-    
-    // Mostrar el turno solo si es el perro (el calendario siempre se queda visible)
+    // 1. PRIMERO encendemos el escuchador del turno
     document.getElementById('select-tarea').addEventListener('change', (e) => {
         const groupTurno = document.getElementById('group-turno');
         if (e.target.value === 'Pasear perro') {
@@ -38,6 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
             groupTurno.style.display = 'none';
         }
     });
+
+    // 2. LUEGO cargamos las listas y datos
+    initSelects();
+    cargarDatosDesdeGoogle();
 });
 
 async function cargarDatosDesdeGoogle() {
