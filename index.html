@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DVHome</title>
-    <link rel="stylesheet" href="style.css">
+    <!-- Añadido ?v=2 para forzar la actualización del caché de estilo en iOS -->
+    <link rel="stylesheet" href="style.css?v=2">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -47,6 +48,17 @@
                         <label for="select-tarea">¿Qué tarea has hecho?</label>
                         <select id="select-tarea" required></select>
                     </div>
+                    
+                    <!-- Oculto por defecto, solo sale si es Pasear perro -->
+                    <div class="input-group" id="group-turno" style="display: none;">
+                        <label for="select-turno">Turno del paseo</label>
+                        <select id="select-turno">
+                            <option value="Mañana">🌅 Mañana</option>
+                            <option value="Tarde">☀️ Tarde</option>
+                            <option value="Noche">🌙 Noche</option>
+                        </select>
+                    </div>
+
                     <div class="input-group">
                         <label for="input-fecha">Fecha y hora (Déjalo vacío para usar la actual)</label>
                         <input type="datetime-local" id="input-fecha">
@@ -57,17 +69,28 @@
             </div>
         </main>
 
-        <!-- Pantalla 3: Detalles por Tarea -->
+        <!-- Pantalla 3: Detalles por Tarea (Avanzado) -->
         <main id="view-detalles" class="view">
-            <h1 class="page-title">🔍 Detalles</h1>
+            <h1 class="page-title">🔍 Análisis de Tarea</h1>
             <div class="input-group">
-                <select id="select-detalle-tarea" style="font-weight: bold; color: var(--accent-color); border: 2px solid var(--accent-color);"></select>
+                <select id="select-detalle-tarea" style="font-size: 18px; font-weight: bold; color: var(--accent-color); border: 2px solid var(--accent-color); background-color: #f0f8ff;"></select>
             </div>
             
-            <h2 class="section-title">Recuento total</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="det-total-veces">0</div>
+                    <div class="stat-label">Veces Realizada</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #34c759, #28a745);">
+                    <div class="stat-value" id="det-ultima-vez" style="font-size: 16px; margin-top: 6px;">--</div>
+                    <div class="stat-label">Última Vez</div>
+                </div>
+            </div>
+            
+            <h2 class="section-title">🏆 Top Realizadores</h2>
             <div id="detalle-ranking" class="list-container" style="margin-bottom: 20px;"></div>
             
-            <h2 class="section-title">Últimos registros</h2>
+            <h2 class="section-title">🕒 Historial Específico</h2>
             <div id="detalle-historial" class="list-container"></div>
         </main>
 
@@ -77,8 +100,8 @@
             <div id="historial-list" class="list-container"></div>
         </main>
 
-        <!-- Modal Nueva Tarea (Flotante) -->
-        <div id="modal-nueva-tarea" class="modal">
+        <!-- Modal Nueva Tarea (Flotante y Oculto) -->
+        <div id="modal-nueva-tarea" class="modal" style="display: none;">
             <div class="card" style="margin-top: 60px;">
                 <h2>Nueva Tarea en el Catálogo</h2>
                 <form id="form-nueva-tarea" style="margin-top: 15px;">
@@ -96,13 +119,13 @@
             </div>
         </div>
 
-        <!-- Navegación inferior (4 botones) -->
+        <!-- Navegación inferior (4 botones a 25%) -->
         <nav class="tab-bar">
             <button class="tab-item active" onclick="navigate('view-ranking', this)">
                 <span class="icon">🏆</span><span>Inicio</span>
             </button>
             <button class="tab-item" onclick="navigate('view-registrar', this)">
-                <span class="icon">☑️</span><span>Registrar</span>
+                <span class="icon">☑️️</span><span>Registrar</span>
             </button>
             <button class="tab-item" onclick="navigate('view-detalles', this)">
                 <span class="icon">🔍</span><span>Detalles</span>
