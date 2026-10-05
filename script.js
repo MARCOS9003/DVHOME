@@ -13,9 +13,9 @@ const UMBRALES = {
 };
 
 let tareas = JSON.parse(localStorage.getItem('dvhome_tareas')) || [
+    { nombre: "Hacer Cocina", puntos: 1 },
     { nombre: "Pasear perro", puntos: 1 },
     { nombre: "Lavar perro", puntos: 1 },
-    { nombre: "Hacer Cocina", puntos: 1 },
     { nombre: "Poner Mesa", puntos: 1 },
     { nombre: "Bajar basura", puntos: 1 },
     { nombre: "Lavaplatos", puntos: 1 },
