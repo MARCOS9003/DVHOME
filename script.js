@@ -7,15 +7,18 @@ const UMBRALES = {
     "Lavar perro": 60,
     "Hacer Cocina": 7,
     "Poner Mesa": 14,
-    "Bajar basura": 14
+    "Bajar basura": 14,
+    "Lavaplatos": 3,
+    "Tender Lavadora": 7
 };
-
 let tareas = JSON.parse(localStorage.getItem('dvhome_tareas')) || [
     { nombre: "Pasear perro", puntos: 1 },
     { nombre: "Lavar perro", puntos: 1 },
     { nombre: "Hacer Cocina", puntos: 1 },
     { nombre: "Poner Mesa", puntos: 1 },
-    { nombre: "Bajar basura", puntos: 1 }
+    { nombre: "Bajar basura", puntos: 1 },
+    { nombre: "Lavaplatos", puntos: 1 },
+    { nombre: "Tender Lavadora", puntos: 1 }
 ];
 
 let registros = [];
