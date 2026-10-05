@@ -28,16 +28,37 @@ document.addEventListener('DOMContentLoaded', () => {
     initSelects();
     cargarDatosDesdeGoogle();
     
+// Función para auto-detectar el turno según la hora
+    function ajustarTurnoAutomatico() {
+        if (document.getElementById('select-tarea').value !== 'Pasear perro') return;
+        
+        const fechaManual = document.getElementById('input-fecha').value;
+        const fechaBase = fechaManual ? new Date(fechaManual) : new Date();
+        const hora = fechaBase.getHours();
+        const selectTurno = document.getElementById('select-turno');
+        
+        if (hora >= 6 && hora < 14) {
+            selectTurno.value = "Mañana"; // De 06:00 a 13:59
+        } else if (hora >= 14 && hora < 21) {
+            selectTurno.value = "Tarde";  // De 14:00 a 20:59
+        } else {
+            selectTurno.value = "Noche";  // De 21:00 a 05:59
+        }
+    }
+
     // Selector dinámico de turno de perro
     document.getElementById('select-tarea').addEventListener('change', (e) => {
         const groupTurno = document.getElementById('group-turno');
         if (e.target.value === 'Pasear perro') {
             groupTurno.style.display = 'block';
+            ajustarTurnoAutomatico(); // Calcula el turno al elegir la tarea
         } else {
             groupTurno.style.display = 'none';
         }
     });
-});
+
+    // Si alguien cambia la hora a mano en el calendario, recalcula el turno
+    document.getElementById('input-fecha').addEventListener('change', ajustarTurnoAutomatico);
 
 async function cargarDatosDesdeGoogle() {
     try {
