@@ -11,6 +11,7 @@ const UMBRALES = {
     "Lavaplatos": 3,
     "Tender Lavadora": 7
 };
+
 let tareas = JSON.parse(localStorage.getItem('dvhome_tareas')) || [
     { nombre: "Pasear perro", puntos: 1 },
     { nombre: "Lavar perro", puntos: 1 },
@@ -28,37 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initSelects();
     cargarDatosDesdeGoogle();
     
-// Función para auto-detectar el turno según la hora
-    function ajustarTurnoAutomatico() {
-        if (document.getElementById('select-tarea').value !== 'Pasear perro') return;
-        
-        const fechaManual = document.getElementById('input-fecha').value;
-        const fechaBase = fechaManual ? new Date(fechaManual) : new Date();
-        const hora = fechaBase.getHours();
-        const selectTurno = document.getElementById('select-turno');
-        
-        if (hora >= 6 && hora < 14) {
-            selectTurno.value = "Mañana"; // De 06:00 a 13:59
-        } else if (hora >= 14 && hora < 21) {
-            selectTurno.value = "Tarde";  // De 14:00 a 20:59
-        } else {
-            selectTurno.value = "Noche";  // De 21:00 a 05:59
-        }
-    }
-
-    // Selector dinámico de turno de perro
+    // Mostrar el turno solo si es el perro (el calendario siempre se queda visible)
     document.getElementById('select-tarea').addEventListener('change', (e) => {
         const groupTurno = document.getElementById('group-turno');
         if (e.target.value === 'Pasear perro') {
             groupTurno.style.display = 'block';
-            ajustarTurnoAutomatico(); // Calcula el turno al elegir la tarea
         } else {
             groupTurno.style.display = 'none';
         }
     });
-
-    // Si alguien cambia la hora a mano en el calendario, recalcula el turno
-    document.getElementById('input-fecha').addEventListener('change', ajustarTurnoAutomatico);
+});
 
 async function cargarDatosDesdeGoogle() {
     try {
@@ -160,8 +140,26 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
     const fechaManual = document.getElementById('input-fecha').value;
     const tareaInfo = tareas.find(t => t.nombre === tareaNombre);
     
-    const turnoSeleccionado = (tareaNombre === 'Pasear perro') ? document.getElementById('select-turno').value : "";
-    const fechaRegistro = fechaManual ? new Date(fechaManual).toISOString() : new Date().toISOString();
+    let fechaRegistro;
+    let turnoSeleccionado = "";
+
+    // Si es el perro, aplicamos la hora fija al día elegido
+    if (tareaNombre === 'Pasear perro') {
+        turnoSeleccionado = document.getElementById('select-turno').value;
+        
+        // Cogemos el día que has puesto a mano, o el de hoy si lo dejas en blanco
+        const fechaBase = fechaManual ? new Date(fechaManual) : new Date();
+        
+        // Inyectamos la hora fija según el turno
+        if (turnoSeleccionado === "Mañana") fechaBase.setHours(10, 0, 0);
+        else if (turnoSeleccionado === "Tarde") fechaBase.setHours(17, 0, 0);
+        else if (turnoSeleccionado === "Noche") fechaBase.setHours(22, 0, 0);
+        
+        fechaRegistro = fechaBase.toISOString();
+    } else {
+        // Para las demás tareas, guarda la fecha y hora exacta
+        fechaRegistro = fechaManual ? new Date(fechaManual).toISOString() : new Date().toISOString();
+    }
 
     const nuevoRegistro = {
         id: Date.now(),
