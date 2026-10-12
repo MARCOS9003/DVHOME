@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DVHome</title>
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -30,9 +30,9 @@
             <div id="ranking-list" class="list-container"></div>
         </main>
 
-        <!-- Pantalla 2: Registrar Tarea -->
+        <!-- Pantalla 2: Registrar Tarea (Nombre corregido) -->
         <main id="view-registrar" class="view">
-            <h1 class="page-title">✅ Tareas</h1>
+            <h1 class="page-title">✅ Registrar</h1>
             <div class="form-container">
                 <form id="form-tarea">
                     <div class="input-group">
@@ -61,7 +61,7 @@
             </div>
         </main>
 
-        <!-- NUEVA PANTALLA: Turnos y Espacios -->
+        <!-- Pantalla 3: Turnos y Espacios -->
         <main id="view-turnos" class="view">
             <h1 class="page-title">🎮 Espacios</h1>
             
@@ -85,7 +85,7 @@
             <div id="recuento-turnos" class="list-container"></div>
         </main>
 
-        <!-- Pantalla Detalles -->
+        <!-- Pantalla 4: Detalles -->
         <main id="view-detalles" class="view">
             <h1 class="page-title">🔍 Análisis</h1>
             <div class="input-group">
@@ -107,13 +107,13 @@
             <div id="detalle-historial" class="list-container"></div>
         </main>
 
-        <!-- Pantalla Historial -->
+        <!-- Pantalla 5: Historial -->
         <main id="view-historial" class="view">
             <h1 class="page-title">🕒 Historial</h1>
             <div id="historial-list" class="list-container"></div>
         </main>
 
-        <!-- Modal Nueva Tarea (Mantenido) -->
+        <!-- Modal Nueva Tarea -->
         <div id="modal-nueva-tarea" class="modal" style="display: none;">
             <div class="card" style="margin-top: 60px;">
                 <h2>Nueva Tarea en el Catálogo</h2>
@@ -126,7 +126,7 @@
             </div>
         </div>
 
-        <!-- NUEVO MODAL: Reservar Turno -->
+        <!-- Modal Reservar Turno -->
         <div id="modal-reservar-turno" class="modal" style="display: none;">
             <div class="card" style="margin-top: 60px;">
                 <h2>🎮 Reservar Espacio</h2>
@@ -160,24 +160,44 @@
             </div>
         </div>
 
-        <!-- Modal Editar Registro Tareas (Mantenido) -->
+        <!-- Modal Editar Registro Tareas (RESTURADO COMPLETO) -->
         <div id="modal-editar-registro" class="modal" style="display: none;">
-            <!-- Lo mantenemos igual, no lo copio entero para ahorrar espacio visual, pero mantén el tuyo aquí -->
             <div class="card" style="margin-top: 60px;">
                 <h2>✏️ Editar Tarea</h2>
-                <button type="button" class="btn-secondary" onclick="document.getElementById('modal-editar-registro').style.display='none'">Cerrar</button>
+                <form id="form-editar-registro" style="margin-top: 15px;">
+                    <input type="hidden" id="edit-id">
+                    <div class="input-group">
+                        <label>Persona</label>
+                        <select id="edit-persona" required></select>
+                    </div>
+                    <div class="input-group" id="edit-group-turno" style="display: none;">
+                        <label>Turno</label>
+                        <select id="edit-turno">
+                            <option value="Mañana">🌅 Mañana</option>
+                            <option value="Tarde">☀️ Tarde</option>
+                            <option value="Noche">🌙 Noche</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Fecha y hora exacta</label>
+                        <input type="datetime-local" id="edit-fecha" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Guardar Cambios</button>
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('modal-editar-registro').style.display='none'">Cancelar</button>
+                    <button type="button" class="btn-secondary" id="btn-eliminar-registro" style="background-color: #ff3b30; color: white; margin-top: 25px;">🗑 Eliminar Registro</button>
+                </form>
             </div>
         </div>
 
         <!-- Navegación inferior (5 botones a 20%) -->
         <nav class="tab-bar">
             <button class="tab-item active" onclick="navigate('view-ranking', this)"><span class="icon">🏆</span><span>Inicio</span></button>
-            <button class="tab-item" onclick="navigate('view-registrar', this)"><span class="icon">☑</span><span>Tareas</span></button>
+            <button class="tab-item" onclick="navigate('view-registrar', this)"><span class="icon">☑</span><span>Registrar</span></button>
             <button class="tab-item" onclick="navigate('view-turnos', this)"><span class="icon">🎮</span><span>Turnos</span></button>
             <button class="tab-item" onclick="navigate('view-detalles', this)"><span class="icon">🔍</span><span>Detalles</span></button>
             <button class="tab-item" onclick="navigate('view-historial', this)"><span class="icon">🕒</span><span>Historial</span></button>
         </nav>
     </div>
-    <script src="script.js?v=5"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>
