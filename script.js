@@ -25,7 +25,6 @@ let tareasBase = [
     { nombre: "Tender Lavadora", puntos: 1 }
 ];
 
-// 1. BLINDAJE LECTURA DE CACHÉ DE TAREAS
 let tareasGuardadas = [];
 try {
     const rawTareas = localStorage.getItem('dvhome_tareas');
@@ -56,8 +55,6 @@ try {
 } catch(e) {}
 
 let miUsuario = localStorage.getItem('dvhome_mi_usuario') || "Marcos";
-
-// Variables estado del calendario
 let vistaTurnos = 'agenda';
 let fechaCalendario = new Date();
 
@@ -79,7 +76,6 @@ async function cargarDatosDesdeGoogle() {
         const data = await response.json();
 
         if (data.status === 'success') {
-            // BLINDAJE: Filtramos filas vacías de Google Sheets con .filter(row => row[0])
             registros = (data.registros || [])
                 .filter(row => row && row[0]) 
                 .map(row => ({
@@ -97,7 +93,6 @@ async function cargarDatosDesdeGoogle() {
             }
         }
     } catch (error) {
-        console.error("Error online, cargando caché local:", error);
         try { registros = JSON.parse(localStorage.getItem('dvhome_registros_cache')) || []; } catch(e){ registros = []; }
         try { reservas = JSON.parse(localStorage.getItem('dvhome_reservas_cache')) || []; } catch(e){ reservas = []; }
     } finally {
@@ -105,13 +100,12 @@ async function cargarDatosDesdeGoogle() {
     }
 }
 
-// BLINDAJE: Aislamos cada pantalla para que un error no congele el resto
 function renderAll() {
-    try { renderRanking(); } catch(e) { console.error("Error ranking", e); }
-    try { renderHistorial(); } catch(e) { console.error("Error historial", e); }
-    try { renderSugerencias(); } catch(e) { console.error("Error sugerencias", e); }
-    try { renderDetalles(); } catch(e) { console.error("Error detalles", e); }
-    try { renderTurnos(); } catch(e) { console.error("Error turnos", e); }
+    try { renderRanking(); } catch(e) {}
+    try { renderHistorial(); } catch(e) {}
+    try { renderSugerencias(); } catch(e) {}
+    try { renderDetalles(); } catch(e) {}
+    try { renderTurnos(); } catch(e) {}
 }
 
 function navigate(viewId, tabElement) {
@@ -124,7 +118,7 @@ function navigate(viewId, tabElement) {
             document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
             tabElement.classList.add('active');
         }
-    } catch(e) { console.error("Error de navegacion", e); }
+    } catch(e) {}
 }
 
 function initSelects() {
@@ -165,7 +159,6 @@ function initSelects() {
 function actualizarDesplegableTareas() {
     const selectTarea = document.getElementById('select-tarea');
     const selectDetalleTarea = document.getElementById('select-detalle-tarea');
-
     if(selectTarea) selectTarea.innerHTML = '';
     if(selectDetalleTarea) selectDetalleTarea.innerHTML = '';
 
@@ -236,7 +229,7 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ tipo: 'nuevo_registro', ...nuevoRegistro })
         });
-    } catch (error) { console.error("Error guardando:", error); }
+    } catch (error) {}
 });
 
 document.getElementById('form-nueva-tarea').addEventListener('submit', (e) => {
@@ -373,6 +366,94 @@ document.getElementById('form-nuevo-turno').addEventListener('submit', async (e)
     } catch (error) {}
 });
 
+// NUEVO: Funciones de EDICIÓN DE TURNOS
+function abrirModalEditarTurno(id) {
+    const reserva = reservas.find(r => r.id === id);
+    if (!reserva) return;
+
+    document.getElementById('edit-turno-id').value = reserva.id;
+    
+    const selectPersona = document.getElementById('edit-turno-persona');
+    selectPersona.innerHTML = '';
+    DEFAULT_USERS.forEach(user => {
+        let opt = document.createElement('option');
+        opt.value = user; opt.textContent = user;
+        if(user === reserva.persona) opt.selected = true;
+        selectPersona.appendChild(opt);
+    });
+
+    document.getElementById('edit-turno-espacio').value = reserva.espacio || 'Cuarto de juegos';
+    document.getElementById('edit-turno-horario').value = reserva.turno || 'Mañana';
+
+    try {
+        let dateStr = "";
+        if (reserva.fecha && reserva.fecha.includes && reserva.fecha.includes('T')) {
+            dateStr = reserva.fecha.split('T')[0];
+        } else if (reserva.fecha) {
+            dateStr = new Date(reserva.fecha).toISOString().split('T')[0];
+        }
+        document.getElementById('edit-turno-fecha').value = dateStr;
+    } catch(e) {}
+
+    document.getElementById('modal-editar-turno').style.display = 'block';
+}
+
+document.getElementById('form-editar-turno').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = parseInt(document.getElementById('edit-turno-id').value);
+    const persona = document.getElementById('edit-turno-persona').value;
+    const espacio = document.getElementById('edit-turno-espacio').value;
+    const turno = document.getElementById('edit-turno-horario').value;
+    const fecha = document.getElementById('edit-turno-fecha').value;
+    
+    const idx = reservas.findIndex(r => r.id === id);
+    if (idx === -1) return;
+
+    reservas[idx].persona = persona;
+    reservas[idx].espacio = espacio;
+    reservas[idx].turno = turno;
+    reservas[idx].fecha = fecha; // String YYYY-MM-DD
+
+    reservas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
+    document.getElementById('modal-editar-turno').style.display = 'none';
+    renderTurnos();
+
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ 
+                tipo: 'editar_turno', 
+                id: id, 
+                persona: persona, 
+                espacio: espacio, 
+                turno: turno, 
+                fecha: fecha 
+            })
+        });
+    } catch(e) {}
+});
+
+document.getElementById('btn-eliminar-turno').addEventListener('click', async () => {
+    if(confirm("¿Seguro que quieres borrar esta reserva?")) {
+        const id = parseInt(document.getElementById('edit-turno-id').value);
+        reservas = reservas.filter(r => r.id !== id);
+        localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
+        document.getElementById('modal-editar-turno').style.display = 'none';
+        renderTurnos();
+        
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ tipo: 'eliminar_turno', id: id })
+            });
+        } catch(e) {}
+    }
+});
+
+// LOGICA DE VISTAS TURNOS
 function setVistaTurnos(vista) {
     vistaTurnos = vista;
     const btnAgenda = document.getElementById('btn-vista-agenda');
@@ -404,7 +485,7 @@ function renderTurnos() {
     let reservasFiltradas = reservas;
     if (filtro !== "Todos") reservasFiltradas = reservas.filter(r => r.espacio === filtro);
 
-    // 1. RENDER AGENDA A PRUEBA DE FALLOS
+    // 1. RENDER AGENDA 
     agendaContenedor.innerHTML = '';
     if (reservasFiltradas.length === 0) {
         agendaContenedor.innerHTML = '<div class="list-item"><span class="item-main">No hay reservas.</span></div>';
@@ -442,7 +523,8 @@ function renderTurnos() {
                 grupos[fecha].forEach(reg => {
                     let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
                     const div = document.createElement('div');
-                    div.className = 'list-item';
+                    div.className = 'list-item clickable-row';
+                    div.onclick = () => abrirModalEditarTurno(reg.id); // NUEVO: Click
                     div.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 24px;">${iconoTurno}</span>
@@ -451,6 +533,7 @@ function renderTurnos() {
                                 <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
                             </div>
                         </div>
+                        <div class="item-sub" style="font-size:18px;">✏️</div>
                     `;
                     agendaContenedor.appendChild(div);
                 });
@@ -458,7 +541,7 @@ function renderTurnos() {
         });
     }
 
-    // 2. RENDER CALENDARIO A PRUEBA DE FALLOS
+    // 2. RENDER CALENDARIO 
     const gridCal = document.getElementById('calendar-days');
     if(gridCal) {
         gridCal.innerHTML = '';
@@ -499,7 +582,8 @@ function renderTurnos() {
                 resDia.forEach(r => {
                     let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
                     let shortName = r.persona ? r.persona.substring(0, 4) : "";
-                    reservasHTML += `<div class="cal-reserva">${icon} ${shortName}</div>`;
+                    // NUEVO: Clickable label inside calendar
+                    reservasHTML += `<div class="cal-reserva" onclick="abrirModalEditarTurno(${r.id})" style="cursor:pointer;">${icon} ${shortName}</div>`;
                 });
                 
                 gridCal.innerHTML += `
@@ -509,7 +593,7 @@ function renderTurnos() {
                     </div>
                 `;
             }
-        } catch(e) { console.error("Error calendario", e); }
+        } catch(e) {}
     }
 
     // 3. RENDER RECUENTO
@@ -534,6 +618,7 @@ function renderTurnos() {
     });
 }
 
+// ---------------- RESTO DEL RENDER DE TAREAS (SIN CAMBIOS) ---------------- //
 function renderDetalles() {
     const selectDetalle = document.getElementById('select-detalle-tarea');
     const contenedorRank = document.getElementById('detalle-ranking');
