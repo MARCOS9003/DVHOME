@@ -29,7 +29,7 @@ let tareasGuardadas = [];
 try {
     const rawTareas = localStorage.getItem('dvhome_tareas');
     if (rawTareas) tareasGuardadas = JSON.parse(rawTareas);
-} catch(e) { console.error("Error leyendo caché de tareas"); }
+} catch(e) {}
 
 let tareas = (Array.isArray(tareasGuardadas) && tareasGuardadas.length > 0) ? tareasGuardadas : tareasBase;
 
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(groupTurno) groupTurno.style.display = (e.target.value === 'Pasear perro') ? 'block' : 'none';
         });
         initSelects();
-    } catch(e) { console.error("Error iniciando selects", e); }
+    } catch(e) {}
     
     cargarDatosDesdeGoogle();
 });
@@ -135,7 +135,6 @@ function initSelects() {
             opt1.value = user; opt1.textContent = user;
             selectPersona.appendChild(opt1);
         }
-
         if(selectMiUsuario) {
             let opt2 = document.createElement('option');
             opt2.value = user; opt2.textContent = user;
@@ -319,7 +318,21 @@ document.getElementById('btn-eliminar-registro').addEventListener('click', async
     }
 });
 
-// --- SISTEMA DE TURNOS Y CALENDARIO ---
+// =========================================================================
+// SISTEMA DE TURNOS Y CALENDARIO (CORREGIDO DESFASE HORARIO)
+// =========================================================================
+
+// Esta función soluciona el problema de que el día se mueva hacia atrás
+function formatearFechaTurno(fechaVal) {
+    if (!fechaVal) return "";
+    const str = String(fechaVal);
+    // Si ya tiene formato puro YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    // Si viene con hora (T), la cortamos sin aplicar conversiones matemáticas
+    if (str.includes('T')) return str.split('T')[0];
+    return str;
+}
+
 function abrirModalTurno() {
     const selectPersona = document.getElementById('turno-persona');
     selectPersona.innerHTML = '';
@@ -347,7 +360,7 @@ document.getElementById('form-nuevo-turno').addEventListener('submit', async (e)
         persona: document.getElementById('turno-persona').value,
         espacio: document.getElementById('turno-espacio').value,
         turno: document.getElementById('turno-horario').value,
-        fecha: document.getElementById('turno-fecha').value
+        fecha: document.getElementById('turno-fecha').value // Guardamos puro "YYYY-MM-DD"
     };
 
     reservas.push(nuevaReserva);
@@ -366,7 +379,6 @@ document.getElementById('form-nuevo-turno').addEventListener('submit', async (e)
     } catch (error) {}
 });
 
-// NUEVO: Funciones de EDICIÓN DE TURNOS
 function abrirModalEditarTurno(id) {
     const reserva = reservas.find(r => r.id === id);
     if (!reserva) return;
@@ -384,16 +396,9 @@ function abrirModalEditarTurno(id) {
 
     document.getElementById('edit-turno-espacio').value = reserva.espacio || 'Cuarto de juegos';
     document.getElementById('edit-turno-horario').value = reserva.turno || 'Mañana';
-
-    try {
-        let dateStr = "";
-        if (reserva.fecha && reserva.fecha.includes && reserva.fecha.includes('T')) {
-            dateStr = reserva.fecha.split('T')[0];
-        } else if (reserva.fecha) {
-            dateStr = new Date(reserva.fecha).toISOString().split('T')[0];
-        }
-        document.getElementById('edit-turno-fecha').value = dateStr;
-    } catch(e) {}
+    
+    // Usamos nuestra función segura
+    document.getElementById('edit-turno-fecha').value = formatearFechaTurno(reserva.fecha);
 
     document.getElementById('modal-editar-turno').style.display = 'block';
 }
@@ -412,7 +417,7 @@ document.getElementById('form-editar-turno').addEventListener('submit', async (e
     reservas[idx].persona = persona;
     reservas[idx].espacio = espacio;
     reservas[idx].turno = turno;
-    reservas[idx].fecha = fecha; // String YYYY-MM-DD
+    reservas[idx].fecha = fecha; // String YYYY-MM-DD puro
 
     reservas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
@@ -453,7 +458,6 @@ document.getElementById('btn-eliminar-turno').addEventListener('click', async ()
     }
 });
 
-// LOGICA DE VISTAS TURNOS
 function setVistaTurnos(vista) {
     vistaTurnos = vista;
     const btnAgenda = document.getElementById('btn-vista-agenda');
@@ -485,115 +489,102 @@ function renderTurnos() {
     let reservasFiltradas = reservas;
     if (filtro !== "Todos") reservasFiltradas = reservas.filter(r => r.espacio === filtro);
 
-    // 1. RENDER AGENDA 
+    // 1. RENDER AGENDA
     agendaContenedor.innerHTML = '';
     if (reservasFiltradas.length === 0) {
         agendaContenedor.innerHTML = '<div class="list-item"><span class="item-main">No hay reservas.</span></div>';
     } else {
         const grupos = {};
         reservasFiltradas.forEach(r => {
-            try {
-                let dateStr = "";
-                if (r.fecha && r.fecha.includes && r.fecha.includes('T')) dateStr = r.fecha.split('T')[0]; 
-                else if (r.fecha) dateStr = new Date(r.fecha).toISOString().split('T')[0];
-                
-                if (dateStr) {
-                    if(!grupos[dateStr]) grupos[dateStr] = [];
-                    grupos[dateStr].push(r);
-                }
-            } catch(e) {}
+            let dateStr = formatearFechaTurno(r.fecha);
+            if (dateStr) {
+                if(!grupos[dateStr]) grupos[dateStr] = [];
+                grupos[dateStr].push(r);
+            }
         });
 
         const fechasOrdenadas = Object.keys(grupos).sort((a,b) => new Date(b) - new Date(a));
 
         fechasOrdenadas.forEach(fecha => {
-            try {
-                const d = new Date(fecha);
-                const formatoDia = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-                const headerDiv = document.createElement('div');
-                headerDiv.style.padding = "10px 15px";
-                headerDiv.style.backgroundColor = "#f2f2f7";
-                headerDiv.style.fontWeight = "bold";
-                headerDiv.style.color = "var(--accent-color)";
-                headerDiv.style.textTransform = "capitalize";
-                headerDiv.style.borderBottom = "1px solid #e5e5ea";
-                headerDiv.textContent = formatoDia;
-                agendaContenedor.appendChild(headerDiv);
+            const d = new Date(fecha);
+            const formatoDia = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            const headerDiv = document.createElement('div');
+            headerDiv.style.padding = "10px 15px";
+            headerDiv.style.backgroundColor = "#f2f2f7";
+            headerDiv.style.fontWeight = "bold";
+            headerDiv.style.color = "var(--accent-color)";
+            headerDiv.style.textTransform = "capitalize";
+            headerDiv.style.borderBottom = "1px solid #e5e5ea";
+            headerDiv.textContent = formatoDia;
+            agendaContenedor.appendChild(headerDiv);
 
-                grupos[fecha].forEach(reg => {
-                    let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
-                    const div = document.createElement('div');
-                    div.className = 'list-item clickable-row';
-                    div.onclick = () => abrirModalEditarTurno(reg.id); // NUEVO: Click
-                    div.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px;">${iconoTurno}</span>
-                            <div>
-                                <div class="item-main">${reg.persona}</div>
-                                <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
-                            </div>
+            grupos[fecha].forEach(reg => {
+                let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
+                const div = document.createElement('div');
+                div.className = 'list-item clickable-row';
+                div.onclick = () => abrirModalEditarTurno(reg.id); 
+                div.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">${iconoTurno}</span>
+                        <div>
+                            <div class="item-main">${reg.persona}</div>
+                            <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
                         </div>
-                        <div class="item-sub" style="font-size:18px;">✏️</div>
-                    `;
-                    agendaContenedor.appendChild(div);
-                });
-            } catch(e) {}
+                    </div>
+                    <div class="item-sub" style="font-size:18px;">✏️</div>
+                `;
+                agendaContenedor.appendChild(div);
+            });
         });
     }
 
-    // 2. RENDER CALENDARIO 
+    // 2. RENDER CALENDARIO
     const gridCal = document.getElementById('calendar-days');
     if(gridCal) {
         gridCal.innerHTML = '';
-        try {
-            const year = fechaCalendario.getFullYear();
-            const month = fechaCalendario.getMonth();
-            const mesLabel = document.getElementById('mes-actual-label');
-            if(mesLabel) mesLabel.textContent = fechaCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-            
-            const firstDayIndex = new Date(year, month, 1).getDay(); 
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            let startDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1; 
-            
-            for(let i=0; i<startDay; i++) {
-                gridCal.innerHTML += `<div class="cal-day empty"></div>`;
-            }
-            
-            let hoyStr = "";
-            try { hoyStr = new Date().toISOString().split('T')[0]; } catch(e){}
+        const year = fechaCalendario.getFullYear();
+        const month = fechaCalendario.getMonth();
+        const mesLabel = document.getElementById('mes-actual-label');
+        if(mesLabel) mesLabel.textContent = fechaCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+        
+        const firstDayIndex = new Date(year, month, 1).getDay(); 
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        let startDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1; 
+        
+        for(let i=0; i<startDay; i++) {
+            gridCal.innerHTML += `<div class="cal-day empty"></div>`;
+        }
+        
+        let hoyStr = "";
+        try { 
+            const dHoy = new Date(); 
+            const tzH = dHoy.getTimezoneOffset() * 60000;
+            hoyStr = new Date(dHoy - tzH).toISOString().split('T')[0];
+        } catch(e){}
 
-            for(let i=1; i<=daysInMonth; i++) {
-                const dateObj = new Date(year, month, i);
-                const tzOffset = dateObj.getTimezoneOffset() * 60000;
-                const dateStr = new Date(dateObj - tzOffset).toISOString().split('T')[0];
-                
-                let isToday = (dateStr === hoyStr) ? 'today' : '';
-                
-                const resDia = reservasFiltradas.filter(r => {
-                    try {
-                        let rDateStr = "";
-                        if (r.fecha && r.fecha.includes && r.fecha.includes('T')) rDateStr = r.fecha.split('T')[0];
-                        else if (r.fecha) rDateStr = new Date(r.fecha).toISOString().split('T')[0];
-                        return rDateStr === dateStr;
-                    } catch(e) { return false; }
-                });
-                
-                let reservasHTML = '';
-                resDia.forEach(r => {
-                    let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
-                    let shortName = r.persona ? r.persona.substring(0, 4) : "";
-                    // NUEVO: Clickable label inside calendar
-                    reservasHTML += `<div class="cal-reserva" onclick="abrirModalEditarTurno(${r.id})" style="cursor:pointer;">${icon} ${shortName}</div>`;
-                });
-                
-                gridCal.innerHTML += `
-                    <div class="cal-day ${isToday}">
-                        <div class="cal-date">${i}</div>
-                        ${reservasHTML}
-                    </div>
-                `;
-            }
-        } catch(e) {}
+        for(let i=1; i<=daysInMonth; i++) {
+            const dateObj = new Date(year, month, i);
+            const tzOffset = dateObj.getTimezoneOffset() * 60000;
+            const dateStr = new Date(dateObj - tzOffset).toISOString().split('T')[0];
+            
+            let isToday = (dateStr === hoyStr) ? 'today' : '';
+            
+            const resDia = reservasFiltradas.filter(r => formatearFechaTurno(r.fecha) === dateStr);
+            
+            let reservasHTML = '';
+            resDia.forEach(r => {
+                let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
+                let shortName = r.persona ? r.persona.substring(0, 4) : "";
+                reservasHTML += `<div class="cal-reserva" onclick="abrirModalEditarTurno(${r.id})" style="cursor:pointer;">${icon} ${shortName}</div>`;
+            });
+            
+            gridCal.innerHTML += `
+                <div class="cal-day ${isToday}">
+                    <div class="cal-date">${i}</div>
+                    ${reservasHTML}
+                </div>
+            `;
+        }
     }
 
     // 3. RENDER RECUENTO
@@ -618,7 +609,9 @@ function renderTurnos() {
     });
 }
 
-// ---------------- RESTO DEL RENDER DE TAREAS (SIN CAMBIOS) ---------------- //
+// -----------------------------------------------------------
+// RENDER TAREAS NORMALES 
+// -----------------------------------------------------------
 function renderDetalles() {
     const selectDetalle = document.getElementById('select-detalle-tarea');
     const contenedorRank = document.getElementById('detalle-ranking');
@@ -653,8 +646,9 @@ function renderDetalles() {
         if (user.total > 0) {
             const div = document.createElement('div');
             div.className = 'list-item';
+            let medalla = index === 0 ? '👑' : '';
             div.innerHTML = `
-                <div class="item-main">${index === 0 ? '👑' : ''} ${user.nombre}</div>
+                <div class="item-main">${medalla} ${user.nombre}</div>
                 <div class="item-score" style="color:var(--text-primary); font-size: 16px;">${user.total} veces</div>
             `;
             contenedorRank.appendChild(div);
