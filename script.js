@@ -45,6 +45,10 @@ let registros = [];
 let reservas = JSON.parse(localStorage.getItem('dvhome_reservas_cache')) || [];
 let miUsuario = localStorage.getItem('dvhome_mi_usuario') || "Marcos";
 
+// Variables estado del calendario
+let vistaTurnos = 'agenda';
+let fechaCalendario = new Date();
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('select-tarea').addEventListener('change', (e) => {
         const groupTurno = document.getElementById('group-turno');
@@ -86,7 +90,6 @@ async function cargarDatosDesdeGoogle() {
     }
 }
 
-// CORREGIDO: Todo integrado en una sola función limpia
 function renderAll() {
     renderRanking();
     renderHistorial();
@@ -203,19 +206,15 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ tipo: 'nuevo_registro', ...nuevoRegistro })
         });
-    } catch (error) {
-        console.error("Error guardando en la nube:", error);
-    }
+    } catch (error) { console.error("Error:", error); }
 });
 
 document.getElementById('form-nueva-tarea').addEventListener('submit', (e) => {
     e.preventDefault();
     const nombre = document.getElementById('input-nueva-tarea').value;
     const puntos = document.getElementById('input-puntos-tarea').value;
-
     tareas.push({ nombre: nombre, puntos: Number(puntos) });
     localStorage.setItem('dvhome_tareas', JSON.stringify(tareas));
-
     actualizarDesplegableTareas();
     document.getElementById('modal-nueva-tarea').style.display = 'none';
     document.getElementById('form-nueva-tarea').reset();
@@ -227,7 +226,6 @@ function abrirModalEditar(id) {
     if (!reg) return;
 
     document.getElementById('edit-id').value = reg.id;
-    
     const selectPersona = document.getElementById('edit-persona');
     selectPersona.innerHTML = '';
     DEFAULT_USERS.forEach(user => {
@@ -249,9 +247,7 @@ function abrirModalEditar(id) {
         const tzOffset = d.getTimezoneOffset() * 60000;
         const localISOTime = (new Date(d - tzOffset)).toISOString().slice(0, 16);
         document.getElementById('edit-fecha').value = localISOTime;
-    } catch(e) {
-        console.error("Error adaptando fecha", e);
-    }
+    } catch(e) { console.error(e); }
 
     document.getElementById('modal-editar-registro').style.display = 'block';
 }
@@ -280,19 +276,13 @@ document.getElementById('form-editar-registro').addEventListener('submit', async
         await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ 
-                tipo: 'editar_registro', 
-                id: id, 
-                persona: persona, 
-                fecha: registros[idx].fecha, 
-                turno: registros[idx].turno 
-            })
+            body: JSON.stringify({ tipo: 'editar_registro', id: id, persona: persona, fecha: registros[idx].fecha, turno: registros[idx].turno })
         });
     } catch(e) { console.error(e); }
 });
 
 document.getElementById('btn-eliminar-registro').addEventListener('click', async () => {
-    if(confirm("¿Seguro que quieres borrar este registro? Esta acción actualizará los puntos.")) {
+    if(confirm("¿Seguro que quieres borrar este registro?")) {
         const id = parseInt(document.getElementById('edit-id').value);
         registros = registros.filter(r => r.id !== id);
         localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
@@ -309,6 +299,7 @@ document.getElementById('btn-eliminar-registro').addEventListener('click', async
     }
 });
 
+// --- SISTEMA DE TURNOS Y CALENDARIO ---
 function abrirModalTurno() {
     const selectPersona = document.getElementById('turno-persona');
     selectPersona.innerHTML = '';
@@ -319,7 +310,6 @@ function abrirModalTurno() {
         selectPersona.appendChild(opt);
     });
     
-    // CORREGIDO: Asignación de fecha robusta para navegadores móviles
     const hoy = new Date();
     const tzOffset = hoy.getTimezoneOffset() * 60000;
     const localISO = new Date(hoy - tzOffset).toISOString().split('T')[0];
@@ -352,8 +342,28 @@ document.getElementById('form-nuevo-turno').addEventListener('submit', async (e)
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ tipo: 'nuevo_turno', ...nuevaReserva })
         });
-    } catch (error) { console.error("Error guardando reserva en la nube:", error); }
+    } catch (error) { console.error(error); }
 });
+
+function setVistaTurnos(vista) {
+    vistaTurnos = vista;
+    document.getElementById('btn-vista-agenda').className = vista === 'agenda' ? 'btn-active' : 'btn-inactive';
+    document.getElementById('btn-vista-calendario').className = vista === 'calendario' ? 'btn-active' : 'btn-inactive';
+    
+    if (vista === 'agenda') {
+        document.getElementById('vista-agenda-container').style.display = 'block';
+        document.getElementById('vista-calendario-container').style.display = 'none';
+    } else {
+        document.getElementById('vista-agenda-container').style.display = 'none';
+        document.getElementById('vista-calendario-container').style.display = 'block';
+    }
+    renderTurnos();
+}
+
+function cambiarMes(delta) {
+    fechaCalendario.setMonth(fechaCalendario.getMonth() + delta);
+    renderTurnos();
+}
 
 function renderTurnos() {
     const agendaContenedor = document.getElementById('agenda-turnos');
@@ -365,9 +375,10 @@ function renderTurnos() {
         reservasFiltradas = reservas.filter(r => r.espacio === filtro);
     }
 
+    // 1. RENDER AGENDA
     agendaContenedor.innerHTML = '';
     if (reservasFiltradas.length === 0) {
-        agendaContenedor.innerHTML = '<div class="list-item"><span class="item-main">No hay reservas registradas.</span></div>';
+        agendaContenedor.innerHTML = '<div class="list-item"><span class="item-main">No hay reservas.</span></div>';
     } else {
         const grupos = {};
         reservasFiltradas.forEach(r => {
@@ -401,7 +412,7 @@ function renderTurnos() {
                         <span style="font-size: 24px;">${iconoTurno}</span>
                         <div>
                             <div class="item-main">${reg.persona}</div>
-                            <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
+                            <div class="item-sub">${reg.espacio} •${reg.turno}</div>
                         </div>
                     </div>
                 `;
@@ -410,6 +421,49 @@ function renderTurnos() {
         });
     }
 
+    // 2. RENDER CALENDARIO
+    const gridCal = document.getElementById('calendar-days');
+    gridCal.innerHTML = '';
+    
+    const year = fechaCalendario.getFullYear();
+    const month = fechaCalendario.getMonth();
+    
+    document.getElementById('mes-actual-label').textContent = fechaCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 es Dom
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let startDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1; // Adaptar a Lunes=0
+    
+    // Celdas vacías previas
+    for(let i=0; i<startDay; i++) {
+        gridCal.innerHTML += `<div class="cal-day empty"></div>`;
+    }
+    
+    const hoyStr = new Date().toISOString().split('T')[0];
+
+    for(let i=1; i<=daysInMonth; i++) {
+        const dateObj = new Date(year, month, i);
+        const tzOffset = dateObj.getTimezoneOffset() * 60000;
+        const dateStr = new Date(dateObj - tzOffset).toISOString().split('T')[0];
+        
+        let isToday = dateStr === hoyStr ? 'today' : '';
+        const resDia = reservasFiltradas.filter(r => r.fecha.startsWith(dateStr));
+        
+        let reservasHTML = '';
+        resDia.forEach(r => {
+            let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
+            let shortName = r.persona.substring(0, 4); // Para que quepa
+            reservasHTML += `<div class="cal-reserva">${icon}${shortName}</div>`;
+        });
+        
+        gridCal.innerHTML += `
+            <div class="cal-day ${isToday}">
+                <div class="cal-date">${i}</div>${reservasHTML}
+            </div>
+        `;
+    }
+
+    // 3. RENDER RECUENTO
     let counts = {};
     DEFAULT_USERS.forEach(u => counts[u] = 0);
     reservasFiltradas.forEach(r => {
@@ -446,12 +500,10 @@ function renderDetalles() {
     if(regs.length > 0) {
         const ultimaFecha = new Date(regs[0].fecha);
         const diasPasados = Math.floor((new Date() - ultimaFecha) / (1000 * 60 * 60 * 24));
-
         let textoUltima = "";
         if (diasPasados === 0) textoUltima = "Hoy";
         else if (diasPasados === 1) textoUltima = "Ayer";
         else textoUltima = `Hace ${diasPasados} días`;
-
         document.getElementById('det-ultima-vez').textContent = textoUltima;
         document.getElementById('det-ultima-vez').style.fontSize = "20px";
     } else {
@@ -462,9 +514,7 @@ function renderDetalles() {
     DEFAULT_USERS.forEach(u => counts[u] = 0);
     regs.forEach(r => counts[r.persona]++);
 
-    const rankingTarea = Object.keys(counts)
-        .map(nombre => ({nombre, total: counts[nombre]}))
-        .sort((a,b) => b.total - a.total);
+    const rankingTarea = Object.keys(counts).map(nombre => ({nombre, total: counts[nombre]})).sort((a,b) => b.total - a.total);
 
     const contenedorRank = document.getElementById('detalle-ranking');
     contenedorRank.innerHTML = '';
@@ -475,7 +525,7 @@ function renderDetalles() {
             div.className = 'list-item';
             let medalla = index === 0 ? '👑' : '';
             div.innerHTML = `
-                <div class="item-main">${medalla} ${user.nombre}</div>
+                <div class="item-main">${medalla}${user.nombre}</div>
                 <div class="item-score" style="color:var(--text-primary); font-size: 16px;">${user.total} veces</div>
             `;
             contenedorRank.appendChild(div);
@@ -507,7 +557,7 @@ function renderDetalles() {
 
             div.innerHTML = `
                 <div>
-                    <div class="item-main">${reg.persona} ${turnoBadge}</div>
+                    <div class="item-main">${reg.persona}${turnoBadge}</div>
                     <div class="item-sub">${fechaFormat}</div>
                 </div>
                 <div class="item-sub" style="font-size:18px;">✏️</div>
@@ -537,8 +587,8 @@ function renderHistorial() {
 
         div.innerHTML = `
             <div>
-                <div class="item-main">${reg.tarea} ${turnoBadge}</div>
-                <div class="item-sub">${reg.persona} • ${fechaFormat}</div>
+                <div class="item-main">${reg.tarea}${turnoBadge}</div>
+                <div class="item-sub">${reg.persona} •${fechaFormat}</div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="item-score" style="color:#8e8e93; font-size: 14px;">+${reg.puntos}</div>
@@ -603,15 +653,13 @@ function renderRanking() {
         }
     });
 
-    const ranking = Object.keys(scores)
-        .map(nombre => ({ nombre, ...scores[nombre] }))
-        .sort((a, b) => b.puntos - a.puntos);
+    const ranking = Object.keys(scores).map(nombre => ({ nombre, ...scores[nombre] })).sort((a, b) => b.puntos - a.puntos);
 
     if (ranking[0].tareas > 0) {
         contenedorLider.innerHTML = `
             <h3 style="color: #d4af37; font-size: 14px; text-transform: uppercase;">👑 Líder Actual</h3>
             <h2 style="font-size: 24px; margin: 5px 0;">${ranking[0].nombre}</h2>
-            <p style="font-size: 14px; color: #666;">${ranking[0].puntos} puntos en ${ranking[0].tareas} tareas</p>
+            <p style="font-size: 14px; color: #666;">${ranking[0].puntos} puntos en${ranking[0].tareas} tareas</p>
         `;
     } else {
         contenedorLider.innerHTML = '<p>Nadie ha hecho tareas aún.</p>';
@@ -633,9 +681,3 @@ function renderRanking() {
                     <div class="item-main">${user.nombre}</div>
                     <div class="item-sub">${user.tareas} tareas realizadas</div>
                 </div>
-            </div>
-            <div class="item-score" style="color: #1c1c1e;">${user.puntos} pts</div>
-        `;
-        contenedorList.appendChild(div);
-    });
-}
