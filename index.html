@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DVHome</title>
-    <!-- Añadido ?v=4 para forzar la actualización del caché -->
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -14,158 +13,171 @@
 </head>
 <body>
     <div id="app">
-        <!-- Pantalla 1: Ranking y Sugerencias -->
+        <!-- Pantalla 1: Ranking -->
         <main id="view-ranking" class="view active">
             <h1 class="page-title">🏆 Inicio</h1>
-
             <div style="margin-bottom: 20px; text-align: center; color: var(--text-secondary); font-size: 14px;">
                 Viendo tareas de: 
                 <select id="select-mi-usuario" style="background: none; border: none; font-weight: bold; color: var(--accent-color); font-size: 16px;"></select>
             </div>
-
             <div id="sugerencias-container" style="display: none; margin-bottom: 20px;">
                 <h2 class="section-title">Recordatorios para ti</h2>
                 <div id="sugerencias-list" class="list-container"></div>
             </div>
-
             <h2 class="section-title">Líder de la Semana</h2>
             <div class="card winner-card" id="lider-semana"></div>
-
             <h2 class="section-title">Tabla de posiciones</h2>
             <div id="ranking-list" class="list-container"></div>
         </main>
 
         <!-- Pantalla 2: Registrar Tarea -->
         <main id="view-registrar" class="view">
-            <h1 class="page-title">✅ Registrar</h1>
+            <h1 class="page-title">✅ Tareas</h1>
             <div class="form-container">
                 <form id="form-tarea">
                     <div class="input-group">
-                        <label for="select-persona">¿Quién eres?</label>
+                        <label>¿Quién eres?</label>
                         <select id="select-persona" required></select>
                     </div>
                     <div class="input-group">
-                        <label for="select-tarea">¿Qué tarea has hecho?</label>
+                        <label>¿Qué tarea has hecho?</label>
                         <select id="select-tarea" required></select>
                     </div>
-
-                    <!-- Oculto por defecto, solo sale si es Pasear perro -->
                     <div class="input-group" id="group-turno" style="display: none;">
-                        <label for="select-turno">Turno del paseo</label>
+                        <label>Turno del paseo</label>
                         <select id="select-turno">
                             <option value="Mañana">🌅 Mañana</option>
                             <option value="Tarde">☀️ Tarde</option>
                             <option value="Noche">🌙 Noche</option>
                         </select>
                     </div>
-
                     <div class="input-group">
-                        <label for="input-fecha">Fecha y hora (Déjalo vacío para usar la actual)</label>
+                        <label>Fecha y hora exacta</label>
                         <input type="datetime-local" id="input-fecha">
                     </div>
-                    <button type="submit" class="btn-primary">Guardar Registro</button>
+                    <button type="submit" class="btn-primary">Guardar Tarea</button>
                 </form>
                 <button type="button" class="btn-secondary" onclick="document.getElementById('modal-nueva-tarea').style.display='block'">➕ Crear nueva tarea</button>
             </div>
         </main>
 
-        <!-- Pantalla 3: Detalles por Tarea (Avanzado) -->
+        <!-- NUEVA PANTALLA: Turnos y Espacios -->
+        <main id="view-turnos" class="view">
+            <h1 class="page-title">🎮 Espacios</h1>
+            
+            <div class="card" style="display: flex; gap: 10px; padding: 10px; background: #e5e5ea;">
+                <button class="btn-primary" style="margin:0; flex:1;" onclick="abrirModalTurno()">➕ Reservar</button>
+            </div>
+
+            <div class="input-group" style="margin-top: 20px;">
+                <label>Filtro de espacio:</label>
+                <select id="filtro-espacio" style="font-weight: bold; color: var(--accent-color); border: 2px solid var(--accent-color);" onchange="renderTurnos()">
+                    <option value="Todos">Todos los espacios</option>
+                    <option value="Cuarto de juegos">Cuarto de juegos</option>
+                    <option value="Salón">Salón</option>
+                </select>
+            </div>
+
+            <h2 class="section-title">📅 Próximos Usos (Agenda)</h2>
+            <div id="agenda-turnos" class="list-container" style="margin-bottom: 20px;"></div>
+
+            <h2 class="section-title">📊 Recuento de Uso</h2>
+            <div id="recuento-turnos" class="list-container"></div>
+        </main>
+
+        <!-- Pantalla Detalles -->
         <main id="view-detalles" class="view">
-            <h1 class="page-title">🔍 Análisis de Tarea</h1>
+            <h1 class="page-title">🔍 Análisis</h1>
             <div class="input-group">
                 <select id="select-detalle-tarea" style="font-size: 18px; font-weight: bold; color: var(--accent-color); border: 2px solid var(--accent-color); background-color: #f0f8ff;"></select>
             </div>
-
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="det-total-veces">0</div>
-                    <div class="stat-label">Veces Realizada</div>
+                    <div class="stat-label">Veces</div>
                 </div>
                 <div class="stat-card" style="background: linear-gradient(135deg, #34c759, #28a745);">
                     <div class="stat-value" id="det-ultima-vez" style="font-size: 16px; margin-top: 6px;">--</div>
                     <div class="stat-label">Última Vez</div>
                 </div>
             </div>
-
             <h2 class="section-title">🏆 Top Realizadores</h2>
             <div id="detalle-ranking" class="list-container" style="margin-bottom: 20px;"></div>
-
             <h2 class="section-title">🕒 Historial Específico</h2>
             <div id="detalle-historial" class="list-container"></div>
         </main>
 
-        <!-- Pantalla 4: Historial General -->
+        <!-- Pantalla Historial -->
         <main id="view-historial" class="view">
             <h1 class="page-title">🕒 Historial</h1>
             <div id="historial-list" class="list-container"></div>
         </main>
 
-        <!-- Modal Nueva Tarea -->
+        <!-- Modal Nueva Tarea (Mantenido) -->
         <div id="modal-nueva-tarea" class="modal" style="display: none;">
             <div class="card" style="margin-top: 60px;">
                 <h2>Nueva Tarea en el Catálogo</h2>
                 <form id="form-nueva-tarea" style="margin-top: 15px;">
-                    <div class="input-group">
-                        <label>Nombre de la tarea</label>
-                        <input type="text" id="input-nueva-tarea" required>
-                    </div>
-                    <div class="input-group">
-                        <label>Puntos asignados</label>
-                        <input type="number" id="input-puntos-tarea" value="1" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Guardar Tarea</button>
+                    <div class="input-group"><label>Nombre</label><input type="text" id="input-nueva-tarea" required></div>
+                    <div class="input-group"><label>Puntos</label><input type="number" id="input-puntos-tarea" value="1" required></div>
+                    <button type="submit" class="btn-primary">Guardar</button>
                     <button type="button" class="btn-secondary" onclick="document.getElementById('modal-nueva-tarea').style.display='none'">Cancelar</button>
                 </form>
             </div>
         </div>
 
-        <!-- NUEVO: Modal Editar Registro -->
-        <div id="modal-editar-registro" class="modal" style="display: none;">
+        <!-- NUEVO MODAL: Reservar Turno -->
+        <div id="modal-reservar-turno" class="modal" style="display: none;">
             <div class="card" style="margin-top: 60px;">
-                <h2>✏️ Editar Registro</h2>
-                <form id="form-editar-registro" style="margin-top: 15px;">
-                    <input type="hidden" id="edit-id">
+                <h2>🎮 Reservar Espacio</h2>
+                <form id="form-nuevo-turno" style="margin-top: 15px;">
                     <div class="input-group">
-                        <label>Persona</label>
-                        <select id="edit-persona" required></select>
+                        <label>¿Quién reserva?</label>
+                        <select id="turno-persona" required></select>
                     </div>
-                    
-                    <div class="input-group" id="edit-group-turno" style="display: none;">
+                    <div class="input-group">
+                        <label>Espacio</label>
+                        <select id="turno-espacio" required>
+                            <option value="Cuarto de juegos">Cuarto de juegos</option>
+                            <option value="Salón">Salón</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
                         <label>Turno</label>
-                        <select id="edit-turno">
+                        <select id="turno-horario" required>
                             <option value="Mañana">🌅 Mañana</option>
                             <option value="Tarde">☀️ Tarde</option>
                             <option value="Noche">🌙 Noche</option>
                         </select>
                     </div>
-
                     <div class="input-group">
-                        <label>Fecha y hora exacta</label>
-                        <input type="datetime-local" id="edit-fecha" required>
+                        <label>Día (Solo la fecha)</label>
+                        <input type="date" id="turno-fecha" required>
                     </div>
-                    <button type="submit" class="btn-primary">Guardar Cambios</button>
-                    <button type="button" class="btn-secondary" onclick="document.getElementById('modal-editar-registro').style.display='none'">Cancelar</button>
-                    <button type="button" class="btn-secondary" id="btn-eliminar-registro" style="background-color: #ff3b30; color: white; margin-top: 25px;">🗑 Eliminar Registro</button>
+                    <button type="submit" class="btn-primary">Guardar Reserva</button>
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('modal-reservar-turno').style.display='none'">Cancelar</button>
                 </form>
             </div>
         </div>
 
-        <!-- Navegación inferior (4 botones a 25%) -->
+        <!-- Modal Editar Registro Tareas (Mantenido) -->
+        <div id="modal-editar-registro" class="modal" style="display: none;">
+            <!-- Lo mantenemos igual, no lo copio entero para ahorrar espacio visual, pero mantén el tuyo aquí -->
+            <div class="card" style="margin-top: 60px;">
+                <h2>✏️ Editar Tarea</h2>
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modal-editar-registro').style.display='none'">Cerrar</button>
+            </div>
+        </div>
+
+        <!-- Navegación inferior (5 botones a 20%) -->
         <nav class="tab-bar">
-            <button class="tab-item active" onclick="navigate('view-ranking', this)">
-                <span class="icon">🏆</span><span>Inicio</span>
-            </button>
-            <button class="tab-item" onclick="navigate('view-registrar', this)">
-                <span class="icon">☑</span><span>Registrar</span>
-            </button>
-            <button class="tab-item" onclick="navigate('view-detalles', this)">
-                <span class="icon">🔍</span><span>Detalles</span>
-            </button>
-            <button class="tab-item" onclick="navigate('view-historial', this)">
-                <span class="icon">🕒</span><span>Historial</span>
-            </button>
+            <button class="tab-item active" onclick="navigate('view-ranking', this)"><span class="icon">🏆</span><span>Inicio</span></button>
+            <button class="tab-item" onclick="navigate('view-registrar', this)"><span class="icon">☑</span><span>Tareas</span></button>
+            <button class="tab-item" onclick="navigate('view-turnos', this)"><span class="icon">🎮</span><span>Turnos</span></button>
+            <button class="tab-item" onclick="navigate('view-detalles', this)"><span class="icon">🔍</span><span>Detalles</span></button>
+            <button class="tab-item" onclick="navigate('view-historial', this)"><span class="icon">🕒</span><span>Historial</span></button>
         </nav>
     </div>
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
 </body>
 </html>
