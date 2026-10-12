@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DVHome</title>
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -30,7 +30,7 @@
             <div id="ranking-list" class="list-container"></div>
         </main>
 
-        <!-- Pantalla 2: Registrar Tarea (Nombre corregido) -->
+        <!-- Pantalla 2: Registrar Tarea -->
         <main id="view-registrar" class="view">
             <h1 class="page-title">✅ Registrar</h1>
             <div class="form-container">
@@ -78,8 +78,31 @@
                 </select>
             </div>
 
-            <h2 class="section-title">📅 Próximos Usos (Agenda)</h2>
-            <div id="agenda-turnos" class="list-container" style="margin-bottom: 20px;"></div>
+            <!-- Selector de Vistas -->
+            <div class="view-toggle">
+                <button id="btn-vista-agenda" class="btn-active" onclick="setVistaTurnos('agenda')">📋 Agenda</button>
+                <button id="btn-vista-calendario" class="btn-inactive" onclick="setVistaTurnos('calendario')">📅 Calendario</button>
+            </div>
+
+            <!-- Vista 1: Agenda -->
+            <div id="vista-agenda-container">
+                <div id="agenda-turnos" class="list-container" style="margin-bottom: 20px;"></div>
+            </div>
+
+            <!-- Vista 2: Calendario -->
+            <div id="vista-calendario-container" style="display: none; margin-bottom: 20px;">
+                <div class="calendar-nav">
+                    <button onclick="cambiarMes(-1)" class="cal-nav-btn">◀</button>
+                    <h3 id="mes-actual-label" style="margin: 0; font-size: 16px; text-transform: uppercase;">MES</h3>
+                    <button onclick="cambiarMes(1)" class="cal-nav-btn">▶</button>
+                </div>
+                <div class="calendar-grid" style="margin-bottom: 5px;">
+                    <div class="cal-header">L</div><div class="cal-header">M</div><div class="cal-header">X</div><div class="cal-header">J</div><div class="cal-header">V</div><div class="cal-header">S</div><div class="cal-header">D</div>
+                </div>
+                <div class="calendar-grid" id="calendar-days">
+                    <!-- Los días se generan aquí desde JavaScript -->
+                </div>
+            </div>
 
             <h2 class="section-title">📊 Recuento de Uso</h2>
             <div id="recuento-turnos" class="list-container"></div>
@@ -160,7 +183,7 @@
             </div>
         </div>
 
-        <!-- Modal Editar Registro Tareas (RESTURADO COMPLETO) -->
+        <!-- Modal Editar Registro Tareas -->
         <div id="modal-editar-registro" class="modal" style="display: none;">
             <div class="card" style="margin-top: 60px;">
                 <h2>✏️ Editar Tarea</h2>
@@ -198,6 +221,6 @@
             <button class="tab-item" onclick="navigate('view-historial', this)"><span class="icon">🕒</span><span>Historial</span></button>
         </nav>
     </div>
-    <script src="script.js?v=6"></script>
+    <script src="script.js?v=7"></script>
 </body>
 </html>
