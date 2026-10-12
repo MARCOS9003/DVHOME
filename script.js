@@ -1,4 +1,3 @@
-// Tu URL real configurada
 const API_URL = "https://script.google.com/macros/s/AKfycbxZ0ZUpiwGT-_c67PJM6mOEkr_e6zrQf3RCUbc7EyP2QtaWLoH-PImuysHbSM9eHeoOsQ/exec";
 const DEFAULT_USERS = ["Marcos", "Jimena", "Mamá", "Papá", "Patricia"];
 
@@ -14,7 +13,6 @@ const UMBRALES = {
     "Limpiar coche (interior)": 30
 };
 
-// Base por defecto con el nuevo orden
 let tareasBase = [
     { nombre: "Pasear perro", puntos: 1 },
     { nombre: "Lavar coche (por fuera)", puntos: 1 },
@@ -30,13 +28,11 @@ let tareasBase = [
 let tareasGuardadas = JSON.parse(localStorage.getItem('dvhome_tareas'));
 let tareas = tareasGuardadas ? tareasGuardadas : tareasBase;
 
-// Script para inyectar automáticamente las nuevas tareas en la caché vieja de los usuarios
 if (tareasGuardadas) {
     const nuevas = ["Lavar coche (por fuera)", "Limpiar coche (interior)"];
     nuevas.forEach(n => {
         if (!tareas.find(t => t.nombre === n)) tareas.push({nombre: n, puntos: 1});
     });
-    // Forzar a Pasear perro a que sea el primero siempre
     const idxPerro = tareas.findIndex(t => t.nombre === "Pasear perro");
     if (idxPerro > 0) {
         const perro = tareas.splice(idxPerro, 1)[0];
@@ -46,10 +42,10 @@ if (tareasGuardadas) {
 }
 
 let registros = [];
+let reservas = JSON.parse(localStorage.getItem('dvhome_reservas_cache')) || [];
 let miUsuario = localStorage.getItem('dvhome_mi_usuario') || "Marcos";
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. PRIMERO encendemos el escuchador del turno
     document.getElementById('select-tarea').addEventListener('change', (e) => {
         const groupTurno = document.getElementById('group-turno');
         if (e.target.value === 'Pasear perro') {
@@ -59,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 2. LUEGO cargamos las listas y datos
     initSelects();
     cargarDatosDesdeGoogle();
 });
@@ -71,15 +66,17 @@ async function cargarDatosDesdeGoogle() {
 
         if (data.status === 'success') {
             registros = data.registros.map(row => ({
-                id: row[0],
-                fecha: row[1],
-                tarea: row[2],
-                persona: row[3],
-                puntos: Number(row[4]),
-                turno: row[5] || "" 
+                id: row[0], fecha: row[1], tarea: row[2], persona: row[3], puntos: Number(row[4]), turno: row[5] || "" 
             })).reverse(); 
-
             localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
+
+            if (data.turnos) {
+                reservas = data.turnos.map(row => ({
+                    id: row[0], fecha: row[1], espacio: row[2], persona: row[3], turno: row[4]
+                })).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+                localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
+            }
+
             renderAll();
         }
     } catch (error) {
@@ -89,11 +86,13 @@ async function cargarDatosDesdeGoogle() {
     }
 }
 
+// CORREGIDO: Todo integrado en una sola función limpia
 function renderAll() {
     renderRanking();
     renderHistorial();
     renderSugerencias();
     renderDetalles();
+    renderTurnos(); 
 }
 
 function navigate(viewId, tabElement) {
@@ -223,14 +222,12 @@ document.getElementById('form-nueva-tarea').addEventListener('submit', (e) => {
     renderAll();
 });
 
-// NUEVO: Función para abrir el Modal de Editar
 function abrirModalEditar(id) {
     const reg = registros.find(r => r.id === id);
     if (!reg) return;
 
     document.getElementById('edit-id').value = reg.id;
     
-    // Llenar select persona
     const selectPersona = document.getElementById('edit-persona');
     selectPersona.innerHTML = '';
     DEFAULT_USERS.forEach(user => {
@@ -240,7 +237,6 @@ function abrirModalEditar(id) {
         selectPersona.appendChild(opt);
     });
 
-    // Controlar Turno
     if (reg.tarea === 'Pasear perro') {
         document.getElementById('edit-group-turno').style.display = 'block';
         document.getElementById('edit-turno').value = reg.turno || 'Mañana';
@@ -248,7 +244,6 @@ function abrirModalEditar(id) {
         document.getElementById('edit-group-turno').style.display = 'none';
     }
 
-    // Adaptar la fecha al input local
     try {
         const d = new Date(reg.fecha);
         const tzOffset = d.getTimezoneOffset() * 60000;
@@ -261,7 +256,6 @@ function abrirModalEditar(id) {
     document.getElementById('modal-editar-registro').style.display = 'block';
 }
 
-// NUEVO: Guardar edición
 document.getElementById('form-editar-registro').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = parseInt(document.getElementById('edit-id').value);
@@ -282,7 +276,6 @@ document.getElementById('form-editar-registro').addEventListener('submit', async
     document.getElementById('modal-editar-registro').style.display = 'none';
     renderAll();
 
-    // Enviar a Google Apps Script
     try {
         await fetch(API_URL, {
             method: 'POST',
@@ -298,7 +291,6 @@ document.getElementById('form-editar-registro').addEventListener('submit', async
     } catch(e) { console.error(e); }
 });
 
-// NUEVO: Botón Eliminar
 document.getElementById('btn-eliminar-registro').addEventListener('click', async () => {
     if(confirm("¿Seguro que quieres borrar este registro? Esta acción actualizará los puntos.")) {
         const id = parseInt(document.getElementById('edit-id').value);
@@ -316,6 +308,131 @@ document.getElementById('btn-eliminar-registro').addEventListener('click', async
         } catch(e) { console.error(e); }
     }
 });
+
+function abrirModalTurno() {
+    const selectPersona = document.getElementById('turno-persona');
+    selectPersona.innerHTML = '';
+    DEFAULT_USERS.forEach(user => {
+        let opt = document.createElement('option');
+        opt.value = user; opt.textContent = user;
+        if(user === miUsuario) opt.selected = true;
+        selectPersona.appendChild(opt);
+    });
+    
+    // CORREGIDO: Asignación de fecha robusta para navegadores móviles
+    const hoy = new Date();
+    const tzOffset = hoy.getTimezoneOffset() * 60000;
+    const localISO = new Date(hoy - tzOffset).toISOString().split('T')[0];
+    document.getElementById('turno-fecha').value = localISO;
+    
+    document.getElementById('modal-reservar-turno').style.display = 'block';
+}
+
+document.getElementById('form-nuevo-turno').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const nuevaReserva = {
+        id: Date.now(),
+        persona: document.getElementById('turno-persona').value,
+        espacio: document.getElementById('turno-espacio').value,
+        turno: document.getElementById('turno-horario').value,
+        fecha: document.getElementById('turno-fecha').value
+    };
+
+    reservas.push(nuevaReserva);
+    reservas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
+    
+    document.getElementById('modal-reservar-turno').style.display = 'none';
+    renderTurnos();
+
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ tipo: 'nuevo_turno', ...nuevaReserva })
+        });
+    } catch (error) { console.error("Error guardando reserva en la nube:", error); }
+});
+
+function renderTurnos() {
+    const agendaContenedor = document.getElementById('agenda-turnos');
+    const recuentoContenedor = document.getElementById('recuento-turnos');
+    const filtro = document.getElementById('filtro-espacio').value;
+
+    let reservasFiltradas = reservas;
+    if (filtro !== "Todos") {
+        reservasFiltradas = reservas.filter(r => r.espacio === filtro);
+    }
+
+    agendaContenedor.innerHTML = '';
+    if (reservasFiltradas.length === 0) {
+        agendaContenedor.innerHTML = '<div class="list-item"><span class="item-main">No hay reservas registradas.</span></div>';
+    } else {
+        const grupos = {};
+        reservasFiltradas.forEach(r => {
+            const dateStr = r.fecha.split('T')[0]; 
+            if(!grupos[dateStr]) grupos[dateStr] = [];
+            grupos[dateStr].push(r);
+        });
+
+        const fechasOrdenadas = Object.keys(grupos).sort((a,b) => new Date(b) - new Date(a));
+
+        fechasOrdenadas.forEach(fecha => {
+            const d = new Date(fecha);
+            const formatoDia = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            
+            const headerDiv = document.createElement('div');
+            headerDiv.style.padding = "10px 15px";
+            headerDiv.style.backgroundColor = "#f2f2f7";
+            headerDiv.style.fontWeight = "bold";
+            headerDiv.style.color = "var(--accent-color)";
+            headerDiv.style.textTransform = "capitalize";
+            headerDiv.style.borderBottom = "1px solid #e5e5ea";
+            headerDiv.textContent = formatoDia;
+            agendaContenedor.appendChild(headerDiv);
+
+            grupos[fecha].forEach(reg => {
+                let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">${iconoTurno}</span>
+                        <div>
+                            <div class="item-main">${reg.persona}</div>
+                            <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
+                        </div>
+                    </div>
+                `;
+                agendaContenedor.appendChild(div);
+            });
+        });
+    }
+
+    let counts = {};
+    DEFAULT_USERS.forEach(u => counts[u] = 0);
+    reservasFiltradas.forEach(r => {
+        if(counts[r.persona] !== undefined) counts[r.persona]++;
+    });
+
+    const rankingUso = Object.keys(counts)
+        .map(nombre => ({nombre, total: counts[nombre]}))
+        .sort((a,b) => b.total - a.total);
+
+    recuentoContenedor.innerHTML = '';
+    rankingUso.forEach((user, index) => {
+        if (user.total > 0) {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.innerHTML = `
+                <div class="item-main">${index === 0 ? '👑' : ''} ${user.nombre}</div>
+                <div class="item-score" style="color:#1c1c1e;">${user.total} usos</div>
+            `;
+            recuentoContenedor.appendChild(div);
+        }
+    });
+}
 
 function renderDetalles() {
     const selectDetalle = document.getElementById('select-detalle-tarea');
@@ -377,8 +494,8 @@ function renderDetalles() {
     } else {
         regs.forEach(reg => {
             const div = document.createElement('div');
-            div.className = 'list-item clickable-row'; // Añadida clase
-            div.onclick = () => abrirModalEditar(reg.id); // Llama a la edición
+            div.className = 'list-item clickable-row'; 
+            div.onclick = () => abrirModalEditar(reg.id); 
 
             let fechaFormat = "Fecha desconocida";
             try {
@@ -407,8 +524,8 @@ function renderHistorial() {
 
     registros.forEach(reg => {
         const div = document.createElement('div');
-        div.className = 'list-item clickable-row'; // Añadida clase
-        div.onclick = () => abrirModalEditar(reg.id); // Llama a la edición
+        div.className = 'list-item clickable-row'; 
+        div.onclick = () => abrirModalEditar(reg.id); 
 
         let fechaFormat = "Fecha desconocida";
         try {
@@ -520,177 +637,5 @@ function renderRanking() {
             <div class="item-score" style="color: #1c1c1e;">${user.puntos} pts</div>
         `;
         contenedorList.appendChild(div);
-    });
-}
-
-// ==========================================
-// NUEVO MÓDULO: TURNOS Y RESERVAS (AGENDA)
-// ==========================================
-
-let reservas = JSON.parse(localStorage.getItem('dvhome_reservas_cache')) || [];
-
-// Modificamos la función cargarDatosDesdeGoogle para que también traiga las reservas
-async function cargarDatosDesdeGoogle() {
-    try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
-
-        if (data.status === 'success') {
-            registros = data.registros.map(row => ({
-                id: row[0], fecha: row[1], tarea: row[2], persona: row[3], puntos: Number(row[4]), turno: row[5] || "" 
-            })).reverse(); 
-            localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
-
-            // Cargar turnos si existen en la respuesta de Google
-            if (data.turnos) {
-                reservas = data.turnos.map(row => ({
-                    id: row[0], fecha: row[1], espacio: row[2], persona: row[3], turno: row[4]
-                })).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // Ordenados por fecha
-                localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
-            }
-
-            renderAll();
-        }
-    } catch (error) {
-        console.error("Error online, cargando caché local:", error);
-        registros = JSON.parse(localStorage.getItem('dvhome_registros_cache')) || [];
-        renderAll();
-    }
-}
-
-// Añadimos renderTurnos al ciclo principal de pintado
-const oldRenderAll = renderAll;
-renderAll = function() {
-    oldRenderAll();
-    renderTurnos();
-};
-
-function abrirModalTurno() {
-    // Llenar el selector de persona del modal
-    const selectPersona = document.getElementById('turno-persona');
-    selectPersona.innerHTML = '';
-    DEFAULT_USERS.forEach(user => {
-        let opt = document.createElement('option');
-        opt.value = user; opt.textContent = user;
-        if(user === miUsuario) opt.selected = true;
-        selectPersona.appendChild(opt);
-    });
-    
-    // Poner por defecto la fecha de hoy
-    document.getElementById('turno-fecha').valueAsDate = new Date();
-    document.getElementById('modal-reservar-turno').style.display = 'block';
-}
-
-document.getElementById('form-nuevo-turno').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const nuevaReserva = {
-        id: Date.now(),
-        persona: document.getElementById('turno-persona').value,
-        espacio: document.getElementById('turno-espacio').value,
-        turno: document.getElementById('turno-horario').value,
-        fecha: document.getElementById('turno-fecha').value
-    };
-
-    reservas.push(nuevaReserva);
-    // Ordenar para que los más recientes/futuros salgan bien en la agenda
-    reservas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
-    
-    document.getElementById('modal-reservar-turno').style.display = 'none';
-    renderTurnos();
-
-    // Guardar en la nube
-    try {
-        await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ tipo: 'nuevo_turno', ...nuevaReserva })
-        });
-    } catch (error) { console.error("Error guardando reserva en la nube:", error); }
-});
-
-function renderTurnos() {
-    const agendaContenedor = document.getElementById('agenda-turnos');
-    const recuentoContenedor = document.getElementById('recuento-turnos');
-    const filtro = document.getElementById('filtro-espacio').value;
-
-    let reservasFiltradas = reservas;
-    if (filtro !== "Todos") {
-        reservasFiltradas = reservas.filter(r => r.espacio === filtro);
-    }
-
-    // 1. Pintar Agenda (Agrupada por día)
-    agendaContenedor.innerHTML = '';
-    if (reservasFiltradas.length === 0) {
-        agendaContenedor.innerHTML = '<div class="list-item"><span class="item-main">No hay reservas registradas.</span></div>';
-    } else {
-        // Agrupar por fecha
-        const grupos = {};
-        reservasFiltradas.forEach(r => {
-            const dateStr = r.fecha.split('T')[0]; // YYYY-MM-DD
-            if(!grupos[dateStr]) grupos[dateStr] = [];
-            grupos[dateStr].push(r);
-        });
-
-        // Ordenar fechas de más reciente a más antigua
-        const fechasOrdenadas = Object.keys(grupos).sort((a,b) => new Date(b) - new Date(a));
-
-        fechasOrdenadas.forEach(fecha => {
-            // Cabecera de Día
-            const d = new Date(fecha);
-            const formatoDia = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-            
-            const headerDiv = document.createElement('div');
-            headerDiv.style.padding = "10px 15px";
-            headerDiv.style.backgroundColor = "#f2f2f7";
-            headerDiv.style.fontWeight = "bold";
-            headerDiv.style.color = "var(--accent-color)";
-            headerDiv.style.textTransform = "capitalize";
-            headerDiv.style.borderBottom = "1px solid #e5e5ea";
-            headerDiv.textContent = formatoDia;
-            agendaContenedor.appendChild(headerDiv);
-
-            // Turnos de ese día
-            grupos[fecha].forEach(reg => {
-                let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
-                const div = document.createElement('div');
-                div.className = 'list-item';
-                div.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">${iconoTurno}</span>
-                        <div>
-                            <div class="item-main">${reg.persona}</div>
-                            <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
-                        </div>
-                    </div>
-                `;
-                agendaContenedor.appendChild(div);
-            });
-        });
-    }
-
-    // 2. Pintar Recuento (Estadísticas de uso)
-    let counts = {};
-    DEFAULT_USERS.forEach(u => counts[u] = 0);
-    reservasFiltradas.forEach(r => {
-        if(counts[r.persona] !== undefined) counts[r.persona]++;
-    });
-
-    const rankingUso = Object.keys(counts)
-        .map(nombre => ({nombre, total: counts[nombre]}))
-        .sort((a,b) => b.total - a.total);
-
-    recuentoContenedor.innerHTML = '';
-    rankingUso.forEach((user, index) => {
-        if (user.total > 0) {
-            const div = document.createElement('div');
-            div.className = 'list-item';
-            div.innerHTML = `
-                <div class="item-main">${index === 0 ? '👑' : ''} ${user.nombre}</div>
-                <div class="item-score" style="color:#1c1c1e;">${user.total} usos</div>
-            `;
-            recuentoContenedor.appendChild(div);
-        }
     });
 }
