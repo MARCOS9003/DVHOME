@@ -412,7 +412,7 @@ function renderTurnos() {
                         <span style="font-size: 24px;">${iconoTurno}</span>
                         <div>
                             <div class="item-main">${reg.persona}</div>
-                            <div class="item-sub">${reg.espacio} •${reg.turno}</div>
+                            <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
                         </div>
                     </div>
                 `;
@@ -453,12 +453,13 @@ function renderTurnos() {
         resDia.forEach(r => {
             let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
             let shortName = r.persona.substring(0, 4); // Para que quepa
-            reservasHTML += `<div class="cal-reserva">${icon}${shortName}</div>`;
+            reservasHTML += `<div class="cal-reserva">${icon} ${shortName}</div>`;
         });
         
         gridCal.innerHTML += `
             <div class="cal-day ${isToday}">
-                <div class="cal-date">${i}</div>${reservasHTML}
+                <div class="cal-date">${i}</div>
+                ${reservasHTML}
             </div>
         `;
     }
@@ -525,7 +526,7 @@ function renderDetalles() {
             div.className = 'list-item';
             let medalla = index === 0 ? '👑' : '';
             div.innerHTML = `
-                <div class="item-main">${medalla}${user.nombre}</div>
+                <div class="item-main">${medalla} ${user.nombre}</div>
                 <div class="item-score" style="color:var(--text-primary); font-size: 16px;">${user.total} veces</div>
             `;
             contenedorRank.appendChild(div);
@@ -557,7 +558,7 @@ function renderDetalles() {
 
             div.innerHTML = `
                 <div>
-                    <div class="item-main">${reg.persona}${turnoBadge}</div>
+                    <div class="item-main">${reg.persona} ${turnoBadge}</div>
                     <div class="item-sub">${fechaFormat}</div>
                 </div>
                 <div class="item-sub" style="font-size:18px;">✏️</div>
@@ -587,8 +588,8 @@ function renderHistorial() {
 
         div.innerHTML = `
             <div>
-                <div class="item-main">${reg.tarea}${turnoBadge}</div>
-                <div class="item-sub">${reg.persona} •${fechaFormat}</div>
+                <div class="item-main">${reg.tarea} ${turnoBadge}</div>
+                <div class="item-sub">${reg.persona} • ${fechaFormat}</div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="item-score" style="color:#8e8e93; font-size: 14px;">+${reg.puntos}</div>
@@ -659,7 +660,7 @@ function renderRanking() {
         contenedorLider.innerHTML = `
             <h3 style="color: #d4af37; font-size: 14px; text-transform: uppercase;">👑 Líder Actual</h3>
             <h2 style="font-size: 24px; margin: 5px 0;">${ranking[0].nombre}</h2>
-            <p style="font-size: 14px; color: #666;">${ranking[0].puntos} puntos en${ranking[0].tareas} tareas</p>
+            <p style="font-size: 14px; color: #666;">${ranking[0].puntos} puntos en ${ranking[0].tareas} tareas</p>
         `;
     } else {
         contenedorLider.innerHTML = '<p>Nadie ha hecho tareas aún.</p>';
@@ -681,3 +682,9 @@ function renderRanking() {
                     <div class="item-main">${user.nombre}</div>
                     <div class="item-sub">${user.tareas} tareas realizadas</div>
                 </div>
+            </div>
+            <div class="item-score" style="color: #1c1c1e;">${user.puntos} pts</div>
+        `;
+        contenedorList.appendChild(div);
+    });
+}
