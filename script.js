@@ -9,18 +9,41 @@ const UMBRALES = {
     "Poner Mesa": 14,
     "Bajar basura": 14,
     "Lavaplatos": 3,
-    "Tender Lavadora": 7
+    "Tender Lavadora": 7,
+    "Lavar coche (por fuera)": 30,
+    "Limpiar coche (interior)": 30
 };
 
-let tareas = JSON.parse(localStorage.getItem('dvhome_tareas')) || [
-    { nombre: "Hacer Cocina", puntos: 1 },
+// Base por defecto con el nuevo orden
+let tareasBase = [
     { nombre: "Pasear perro", puntos: 1 },
+    { nombre: "Lavar coche (por fuera)", puntos: 1 },
+    { nombre: "Limpiar coche (interior)", puntos: 1 },
+    { nombre: "Hacer Cocina", puntos: 1 },
     { nombre: "Lavar perro", puntos: 1 },
     { nombre: "Poner Mesa", puntos: 1 },
     { nombre: "Bajar basura", puntos: 1 },
     { nombre: "Lavaplatos", puntos: 1 },
     { nombre: "Tender Lavadora", puntos: 1 }
 ];
+
+let tareasGuardadas = JSON.parse(localStorage.getItem('dvhome_tareas'));
+let tareas = tareasGuardadas ? tareasGuardadas : tareasBase;
+
+// Script para inyectar automáticamente las nuevas tareas en la caché vieja de los usuarios
+if (tareasGuardadas) {
+    const nuevas = ["Lavar coche (por fuera)", "Limpiar coche (interior)"];
+    nuevas.forEach(n => {
+        if (!tareas.find(t => t.nombre === n)) tareas.push({nombre: n, puntos: 1});
+    });
+    // Forzar a Pasear perro a que sea el primero siempre
+    const idxPerro = tareas.findIndex(t => t.nombre === "Pasear perro");
+    if (idxPerro > 0) {
+        const perro = tareas.splice(idxPerro, 1)[0];
+        tareas.unshift(perro);
+    }
+    localStorage.setItem('dvhome_tareas', JSON.stringify(tareas));
+}
 
 let registros = [];
 let miUsuario = localStorage.getItem('dvhome_mi_usuario') || "Marcos";
@@ -45,7 +68,7 @@ async function cargarDatosDesdeGoogle() {
     try {
         const response = await fetch(API_URL);
         const data = await response.json();
-        
+
         if (data.status === 'success') {
             registros = data.registros.map(row => ({
                 id: row[0],
@@ -55,7 +78,7 @@ async function cargarDatosDesdeGoogle() {
                 puntos: Number(row[4]),
                 turno: row[5] || "" 
             })).reverse(); 
-            
+
             localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
             renderAll();
         }
@@ -76,7 +99,7 @@ function renderAll() {
 function navigate(viewId, tabElement) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
-    
+
     if (tabElement) {
         document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
         tabElement.classList.add('active');
@@ -87,10 +110,10 @@ function initSelects() {
     const selectPersona = document.getElementById('select-persona');
     const selectMiUsuario = document.getElementById('select-mi-usuario');
     const selectDetalleTarea = document.getElementById('select-detalle-tarea');
-    
+
     selectPersona.innerHTML = '';
     selectMiUsuario.innerHTML = '';
-    
+
     DEFAULT_USERS.forEach(user => {
         let opt1 = document.createElement('option');
         opt1.value = user; opt1.textContent = user;
@@ -115,10 +138,10 @@ function initSelects() {
 function actualizarDesplegableTareas() {
     const selectTarea = document.getElementById('select-tarea');
     const selectDetalleTarea = document.getElementById('select-detalle-tarea');
-    
+
     selectTarea.innerHTML = '';
     selectDetalleTarea.innerHTML = '';
-    
+
     tareas.forEach(task => {
         let opt = document.createElement('option');
         opt.value = task.nombre;
@@ -130,7 +153,7 @@ function actualizarDesplegableTareas() {
         optDetalle.textContent = task.nombre;
         selectDetalleTarea.appendChild(optDetalle);
     });
-    
+
     selectTarea.dispatchEvent(new Event('change'));
 }
 
@@ -140,25 +163,20 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
     const tareaNombre = document.getElementById('select-tarea').value;
     const fechaManual = document.getElementById('input-fecha').value;
     const tareaInfo = tareas.find(t => t.nombre === tareaNombre);
-    
+
     let fechaRegistro;
     let turnoSeleccionado = "";
 
-    // Si es el perro, aplicamos la hora fija al día elegido
     if (tareaNombre === 'Pasear perro') {
         turnoSeleccionado = document.getElementById('select-turno').value;
-        
-        // Cogemos el día que has puesto a mano, o el de hoy si lo dejas en blanco
         const fechaBase = fechaManual ? new Date(fechaManual) : new Date();
-        
-        // Inyectamos la hora fija según el turno
+
         if (turnoSeleccionado === "Mañana") fechaBase.setHours(10, 0, 0);
         else if (turnoSeleccionado === "Tarde") fechaBase.setHours(17, 0, 0);
         else if (turnoSeleccionado === "Noche") fechaBase.setHours(22, 0, 0);
-        
+
         fechaRegistro = fechaBase.toISOString();
     } else {
-        // Para las demás tareas, guarda la fecha y hora exacta
         fechaRegistro = fechaManual ? new Date(fechaManual).toISOString() : new Date().toISOString();
     }
 
@@ -170,16 +188,16 @@ document.getElementById('form-tarea').addEventListener('submit', async (e) => {
         puntos: Number(tareaInfo.puntos),
         turno: turnoSeleccionado
     };
-    
+
     registros.unshift(nuevoRegistro);
     localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
-    
+
     document.getElementById('input-fecha').value = "";
     document.getElementById('select-turno').value = "Mañana";
-    
+
     renderAll();
     navigate('view-ranking', document.querySelectorAll('.tab-item')[0]);
-    
+
     try {
         await fetch(API_URL, {
             method: 'POST',
@@ -195,51 +213,145 @@ document.getElementById('form-nueva-tarea').addEventListener('submit', (e) => {
     e.preventDefault();
     const nombre = document.getElementById('input-nueva-tarea').value;
     const puntos = document.getElementById('input-puntos-tarea').value;
-    
+
     tareas.push({ nombre: nombre, puntos: Number(puntos) });
     localStorage.setItem('dvhome_tareas', JSON.stringify(tareas));
-    
+
     actualizarDesplegableTareas();
     document.getElementById('modal-nueva-tarea').style.display = 'none';
     document.getElementById('form-nueva-tarea').reset();
     renderAll();
 });
 
+// NUEVO: Función para abrir el Modal de Editar
+function abrirModalEditar(id) {
+    const reg = registros.find(r => r.id === id);
+    if (!reg) return;
+
+    document.getElementById('edit-id').value = reg.id;
+    
+    // Llenar select persona
+    const selectPersona = document.getElementById('edit-persona');
+    selectPersona.innerHTML = '';
+    DEFAULT_USERS.forEach(user => {
+        let opt = document.createElement('option');
+        opt.value = user; opt.textContent = user;
+        if(user === reg.persona) opt.selected = true;
+        selectPersona.appendChild(opt);
+    });
+
+    // Controlar Turno
+    if (reg.tarea === 'Pasear perro') {
+        document.getElementById('edit-group-turno').style.display = 'block';
+        document.getElementById('edit-turno').value = reg.turno || 'Mañana';
+    } else {
+        document.getElementById('edit-group-turno').style.display = 'none';
+    }
+
+    // Adaptar la fecha al input local
+    try {
+        const d = new Date(reg.fecha);
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(d - tzOffset)).toISOString().slice(0, 16);
+        document.getElementById('edit-fecha').value = localISOTime;
+    } catch(e) {
+        console.error("Error adaptando fecha", e);
+    }
+
+    document.getElementById('modal-editar-registro').style.display = 'block';
+}
+
+// NUEVO: Guardar edición
+document.getElementById('form-editar-registro').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = parseInt(document.getElementById('edit-id').value);
+    const persona = document.getElementById('edit-persona').value;
+    const fechaManual = document.getElementById('edit-fecha').value;
+    
+    const idx = registros.findIndex(r => r.id === id);
+    if (idx === -1) return;
+
+    registros[idx].persona = persona;
+    registros[idx].fecha = new Date(fechaManual).toISOString();
+    
+    if (registros[idx].tarea === 'Pasear perro') {
+        registros[idx].turno = document.getElementById('edit-turno').value;
+    }
+
+    localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
+    document.getElementById('modal-editar-registro').style.display = 'none';
+    renderAll();
+
+    // Enviar a Google Apps Script
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ 
+                tipo: 'editar_registro', 
+                id: id, 
+                persona: persona, 
+                fecha: registros[idx].fecha, 
+                turno: registros[idx].turno 
+            })
+        });
+    } catch(e) { console.error(e); }
+});
+
+// NUEVO: Botón Eliminar
+document.getElementById('btn-eliminar-registro').addEventListener('click', async () => {
+    if(confirm("¿Seguro que quieres borrar este registro? Esta acción actualizará los puntos.")) {
+        const id = parseInt(document.getElementById('edit-id').value);
+        registros = registros.filter(r => r.id !== id);
+        localStorage.setItem('dvhome_registros_cache', JSON.stringify(registros));
+        document.getElementById('modal-editar-registro').style.display = 'none';
+        renderAll();
+        
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ tipo: 'eliminar_registro', id: id })
+            });
+        } catch(e) { console.error(e); }
+    }
+});
+
 function renderDetalles() {
     const selectDetalle = document.getElementById('select-detalle-tarea');
     if (!selectDetalle || !selectDetalle.value) return;
     const tareaObj = selectDetalle.value;
-    
+
     const regs = registros.filter(r => r.tarea === tareaObj);
-    
+
     document.getElementById('det-total-veces').textContent = regs.length;
-    
+
     if(regs.length > 0) {
         const ultimaFecha = new Date(regs[0].fecha);
         const diasPasados = Math.floor((new Date() - ultimaFecha) / (1000 * 60 * 60 * 24));
-        
+
         let textoUltima = "";
         if (diasPasados === 0) textoUltima = "Hoy";
         else if (diasPasados === 1) textoUltima = "Ayer";
         else textoUltima = `Hace ${diasPasados} días`;
-        
+
         document.getElementById('det-ultima-vez').textContent = textoUltima;
         document.getElementById('det-ultima-vez').style.fontSize = "20px";
     } else {
         document.getElementById('det-ultima-vez').textContent = "--";
     }
-    
+
     let counts = {};
     DEFAULT_USERS.forEach(u => counts[u] = 0);
     regs.forEach(r => counts[r.persona]++);
-    
+
     const rankingTarea = Object.keys(counts)
         .map(nombre => ({nombre, total: counts[nombre]}))
         .sort((a,b) => b.total - a.total);
-        
+
     const contenedorRank = document.getElementById('detalle-ranking');
     contenedorRank.innerHTML = '';
-    
+
     rankingTarea.forEach((user, index) => {
         if (user.total > 0) {
             const div = document.createElement('div');
@@ -252,21 +364,22 @@ function renderDetalles() {
             contenedorRank.appendChild(div);
         }
     });
-    
+
     if (contenedorRank.innerHTML === '') {
         contenedorRank.innerHTML = '<div class="list-item"><span class="item-main" style="color:var(--text-secondary);">Nadie la ha realizado todavía.</span></div>';
     }
 
     const contenedorHist = document.getElementById('detalle-historial');
     contenedorHist.innerHTML = '';
-    
+
     if (regs.length === 0) {
         contenedorHist.innerHTML = '<div class="list-item"><span class="item-main" style="color:var(--text-secondary);">Sin historial.</span></div>';
     } else {
         regs.forEach(reg => {
             const div = document.createElement('div');
-            div.className = 'list-item';
-            
+            div.className = 'list-item clickable-row'; // Añadida clase
+            div.onclick = () => abrirModalEditar(reg.id); // Llama a la edición
+
             let fechaFormat = "Fecha desconocida";
             try {
                 const fechaObj = new Date(reg.fecha);
@@ -280,6 +393,7 @@ function renderDetalles() {
                     <div class="item-main">${reg.persona} ${turnoBadge}</div>
                     <div class="item-sub">${fechaFormat}</div>
                 </div>
+                <div class="item-sub" style="font-size:18px;">✏️</div>
             `;
             contenedorHist.appendChild(div);
         });
@@ -293,8 +407,9 @@ function renderHistorial() {
 
     registros.forEach(reg => {
         const div = document.createElement('div');
-        div.className = 'list-item';
-        
+        div.className = 'list-item clickable-row'; // Añadida clase
+        div.onclick = () => abrirModalEditar(reg.id); // Llama a la edición
+
         let fechaFormat = "Fecha desconocida";
         try {
             const fechaObj = new Date(reg.fecha);
@@ -308,7 +423,10 @@ function renderHistorial() {
                 <div class="item-main">${reg.tarea} ${turnoBadge}</div>
                 <div class="item-sub">${reg.persona} • ${fechaFormat}</div>
             </div>
-            <div class="item-score" style="color:#8e8e93; font-size: 14px;">+${reg.puntos}</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="item-score" style="color:#8e8e93; font-size: 14px;">+${reg.puntos}</div>
+                <div class="item-sub" style="font-size:18px;">✏️</div>
+            </div>
         `;
         contenedor.appendChild(div);
     });
@@ -322,13 +440,13 @@ function renderSugerencias() {
     tareas.forEach(t => {
         const limiteDias = UMBRALES[t.nombre] || 7; 
         const misRegistros = registros.filter(r => r.persona === miUsuario && r.tarea === t.nombre);
-        
+
         if (misRegistros.length === 0) {
             sugerenciasAtrasadas.push({ nombre: t.nombre, texto: "Nunca realizada", limite: limiteDias });
         } else {
             const fechaUltima = new Date(misRegistros[0].fecha);
             const diasPasados = Math.floor((new Date() - fechaUltima) / (1000 * 60 * 60 * 24));
-            
+
             if (diasPasados >= limiteDias) {
                 sugerenciasAtrasadas.push({ nombre: t.nombre, texto: `Hace ${diasPasados} días`, limite: limiteDias });
             }
@@ -357,21 +475,21 @@ function renderSugerencias() {
 function renderRanking() {
     const contenedorList = document.getElementById('ranking-list');
     const contenedorLider = document.getElementById('lider-semana');
-    
+
     let scores = {};
     DEFAULT_USERS.forEach(u => scores[u] = { puntos: 0, tareas: 0 });
-    
+
     registros.forEach(reg => {
         if(scores[reg.persona]) {
             scores[reg.persona].puntos += reg.puntos;
             scores[reg.persona].tareas += 1;
         }
     });
-    
+
     const ranking = Object.keys(scores)
         .map(nombre => ({ nombre, ...scores[nombre] }))
         .sort((a, b) => b.puntos - a.puntos);
-        
+
     if (ranking[0].tareas > 0) {
         contenedorLider.innerHTML = `
             <h3 style="color: #d4af37; font-size: 14px; text-transform: uppercase;">👑 Líder Actual</h3>
@@ -381,7 +499,7 @@ function renderRanking() {
     } else {
         contenedorLider.innerHTML = '<p>Nadie ha hecho tareas aún.</p>';
     }
-    
+
     contenedorList.innerHTML = '';
     ranking.forEach((user, index) => {
         const div = document.createElement('div');
@@ -390,7 +508,7 @@ function renderRanking() {
         if(index === 0) medalla = '🥇';
         if(index === 1) medalla = '🥈';
         if(index === 2) medalla = '🥉';
-        
+
         div.innerHTML = `
             <div style="display: flex; align-items: center; gap: 15px;">
                 <span style="font-size: 20px; font-weight: bold; width: 25px; text-align: center;">${medalla}</span>
