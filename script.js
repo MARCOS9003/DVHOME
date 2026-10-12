@@ -29,7 +29,7 @@ let tareasGuardadas = [];
 try {
     const rawTareas = localStorage.getItem('dvhome_tareas');
     if (rawTareas) tareasGuardadas = JSON.parse(rawTareas);
-} catch(e) {}
+} catch(e) { console.error("Error leyendo caché de tareas"); }
 
 let tareas = (Array.isArray(tareasGuardadas) && tareasGuardadas.length > 0) ? tareasGuardadas : tareasBase;
 
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(groupTurno) groupTurno.style.display = (e.target.value === 'Pasear perro') ? 'block' : 'none';
         });
         initSelects();
-    } catch(e) {}
+    } catch(e) { console.error("Error iniciando selects", e); }
     
     cargarDatosDesdeGoogle();
 });
@@ -135,6 +135,7 @@ function initSelects() {
             opt1.value = user; opt1.textContent = user;
             selectPersona.appendChild(opt1);
         }
+
         if(selectMiUsuario) {
             let opt2 = document.createElement('option');
             opt2.value = user; opt2.textContent = user;
@@ -318,20 +319,37 @@ document.getElementById('btn-eliminar-registro').addEventListener('click', async
     }
 });
 
+
 // =========================================================================
-// SISTEMA DE TURNOS Y CALENDARIO (CORREGIDO DESFASE HORARIO)
+// SISTEMA DE TURNOS Y CALENDARIO (SOLUCIÓN AL VIAJE EN EL TIEMPO)
 // =========================================================================
 
-// Esta función soluciona el problema de que el día se mueva hacia atrás
+// Esta función lee la fecha de Google, la transforma a la zona horaria 
+// de España/Local y extrae el día correcto para evitar desfases.
 function formatearFechaTurno(fechaVal) {
     if (!fechaVal) return "";
     const str = String(fechaVal);
-    // Si ya tiene formato puro YYYY-MM-DD
+    
+    // 1. Si la fecha ya viene pura desde el móvil (ej: "2026-10-12"), no se toca
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-    // Si viene con hora (T), la cortamos sin aplicar conversiones matemáticas
+    
+    // 2. Si viene de Google Sheets corrompida por el UTC (ej: "2026-10-11T22:00:00.000Z")
+    try {
+        const d = new Date(fechaVal);
+        if (!isNaN(d)) {
+            // Pedimos a Javascript que extraiga el día según el reloj local de tu móvil
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`; // ¡Magia! Día corregido.
+        }
+    } catch(e) {}
+    
+    // Fallback de seguridad
     if (str.includes('T')) return str.split('T')[0];
     return str;
 }
+
 
 function abrirModalTurno() {
     const selectPersona = document.getElementById('turno-persona');
@@ -360,7 +378,7 @@ document.getElementById('form-nuevo-turno').addEventListener('submit', async (e)
         persona: document.getElementById('turno-persona').value,
         espacio: document.getElementById('turno-espacio').value,
         turno: document.getElementById('turno-horario').value,
-        fecha: document.getElementById('turno-fecha').value // Guardamos puro "YYYY-MM-DD"
+        fecha: document.getElementById('turno-fecha').value 
     };
 
     reservas.push(nuevaReserva);
@@ -397,7 +415,7 @@ function abrirModalEditarTurno(id) {
     document.getElementById('edit-turno-espacio').value = reserva.espacio || 'Cuarto de juegos';
     document.getElementById('edit-turno-horario').value = reserva.turno || 'Mañana';
     
-    // Usamos nuestra función segura
+    // Usamos nuestra nueva función a prueba de desfases
     document.getElementById('edit-turno-fecha').value = formatearFechaTurno(reserva.fecha);
 
     document.getElementById('modal-editar-turno').style.display = 'block';
@@ -417,7 +435,7 @@ document.getElementById('form-editar-turno').addEventListener('submit', async (e
     reservas[idx].persona = persona;
     reservas[idx].espacio = espacio;
     reservas[idx].turno = turno;
-    reservas[idx].fecha = fecha; // String YYYY-MM-DD puro
+    reservas[idx].fecha = fecha; // Puro YYYY-MM-DD
 
     reservas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     localStorage.setItem('dvhome_reservas_cache', JSON.stringify(reservas));
@@ -506,35 +524,37 @@ function renderTurnos() {
         const fechasOrdenadas = Object.keys(grupos).sort((a,b) => new Date(b) - new Date(a));
 
         fechasOrdenadas.forEach(fecha => {
-            const d = new Date(fecha);
-            const formatoDia = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-            const headerDiv = document.createElement('div');
-            headerDiv.style.padding = "10px 15px";
-            headerDiv.style.backgroundColor = "#f2f2f7";
-            headerDiv.style.fontWeight = "bold";
-            headerDiv.style.color = "var(--accent-color)";
-            headerDiv.style.textTransform = "capitalize";
-            headerDiv.style.borderBottom = "1px solid #e5e5ea";
-            headerDiv.textContent = formatoDia;
-            agendaContenedor.appendChild(headerDiv);
+            try {
+                const d = new Date(fecha);
+                const formatoDia = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+                const headerDiv = document.createElement('div');
+                headerDiv.style.padding = "10px 15px";
+                headerDiv.style.backgroundColor = "#f2f2f7";
+                headerDiv.style.fontWeight = "bold";
+                headerDiv.style.color = "var(--accent-color)";
+                headerDiv.style.textTransform = "capitalize";
+                headerDiv.style.borderBottom = "1px solid #e5e5ea";
+                headerDiv.textContent = formatoDia;
+                agendaContenedor.appendChild(headerDiv);
 
-            grupos[fecha].forEach(reg => {
-                let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
-                const div = document.createElement('div');
-                div.className = 'list-item clickable-row';
-                div.onclick = () => abrirModalEditarTurno(reg.id); 
-                div.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">${iconoTurno}</span>
-                        <div>
-                            <div class="item-main">${reg.persona}</div>
-                            <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
+                grupos[fecha].forEach(reg => {
+                    let iconoTurno = reg.turno === "Mañana" ? "🌅" : (reg.turno === "Tarde" ? "☀️" : "🌙");
+                    const div = document.createElement('div');
+                    div.className = 'list-item clickable-row';
+                    div.onclick = () => abrirModalEditarTurno(reg.id); 
+                    div.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px;">${iconoTurno}</span>
+                            <div>
+                                <div class="item-main">${reg.persona}</div>
+                                <div class="item-sub">${reg.espacio} • ${reg.turno}</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="item-sub" style="font-size:18px;">✏️</div>
-                `;
-                agendaContenedor.appendChild(div);
-            });
+                        <div class="item-sub" style="font-size:18px;">✏️</div>
+                    `;
+                    agendaContenedor.appendChild(div);
+                });
+            } catch(e) {}
         });
     }
 
@@ -542,49 +562,51 @@ function renderTurnos() {
     const gridCal = document.getElementById('calendar-days');
     if(gridCal) {
         gridCal.innerHTML = '';
-        const year = fechaCalendario.getFullYear();
-        const month = fechaCalendario.getMonth();
-        const mesLabel = document.getElementById('mes-actual-label');
-        if(mesLabel) mesLabel.textContent = fechaCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-        
-        const firstDayIndex = new Date(year, month, 1).getDay(); 
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        let startDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1; 
-        
-        for(let i=0; i<startDay; i++) {
-            gridCal.innerHTML += `<div class="cal-day empty"></div>`;
-        }
-        
-        let hoyStr = "";
-        try { 
-            const dHoy = new Date(); 
-            const tzH = dHoy.getTimezoneOffset() * 60000;
-            hoyStr = new Date(dHoy - tzH).toISOString().split('T')[0];
-        } catch(e){}
+        try {
+            const year = fechaCalendario.getFullYear();
+            const month = fechaCalendario.getMonth();
+            const mesLabel = document.getElementById('mes-actual-label');
+            if(mesLabel) mesLabel.textContent = fechaCalendario.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+            
+            const firstDayIndex = new Date(year, month, 1).getDay(); 
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            let startDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1; 
+            
+            for(let i=0; i<startDay; i++) {
+                gridCal.innerHTML += `<div class="cal-day empty"></div>`;
+            }
+            
+            let hoyStr = "";
+            try { 
+                const dHoy = new Date(); 
+                const tzH = dHoy.getTimezoneOffset() * 60000;
+                hoyStr = new Date(dHoy - tzH).toISOString().split('T')[0];
+            } catch(e){}
 
-        for(let i=1; i<=daysInMonth; i++) {
-            const dateObj = new Date(year, month, i);
-            const tzOffset = dateObj.getTimezoneOffset() * 60000;
-            const dateStr = new Date(dateObj - tzOffset).toISOString().split('T')[0];
-            
-            let isToday = (dateStr === hoyStr) ? 'today' : '';
-            
-            const resDia = reservasFiltradas.filter(r => formatearFechaTurno(r.fecha) === dateStr);
-            
-            let reservasHTML = '';
-            resDia.forEach(r => {
-                let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
-                let shortName = r.persona ? r.persona.substring(0, 4) : "";
-                reservasHTML += `<div class="cal-reserva" onclick="abrirModalEditarTurno(${r.id})" style="cursor:pointer;">${icon} ${shortName}</div>`;
-            });
-            
-            gridCal.innerHTML += `
-                <div class="cal-day ${isToday}">
-                    <div class="cal-date">${i}</div>
-                    ${reservasHTML}
-                </div>
-            `;
-        }
+            for(let i=1; i<=daysInMonth; i++) {
+                const dateObj = new Date(year, month, i);
+                const tzOffset = dateObj.getTimezoneOffset() * 60000;
+                const dateStr = new Date(dateObj - tzOffset).toISOString().split('T')[0];
+                
+                let isToday = (dateStr === hoyStr) ? 'today' : '';
+                
+                const resDia = reservasFiltradas.filter(r => formatearFechaTurno(r.fecha) === dateStr);
+                
+                let reservasHTML = '';
+                resDia.forEach(r => {
+                    let icon = r.turno === "Mañana" ? "🌅" : (r.turno === "Tarde" ? "☀️" : "🌙");
+                    let shortName = r.persona ? r.persona.substring(0, 4) : "";
+                    reservasHTML += `<div class="cal-reserva" onclick="abrirModalEditarTurno(${r.id})" style="cursor:pointer;">${icon} ${shortName}</div>`;
+                });
+                
+                gridCal.innerHTML += `
+                    <div class="cal-day ${isToday}">
+                        <div class="cal-date">${i}</div>
+                        ${reservasHTML}
+                    </div>
+                `;
+            }
+        } catch(e) {}
     }
 
     // 3. RENDER RECUENTO
@@ -609,9 +631,7 @@ function renderTurnos() {
     });
 }
 
-// -----------------------------------------------------------
-// RENDER TAREAS NORMALES 
-// -----------------------------------------------------------
+// ---------------- RESTO DE LAS TAREAS NORMALES ---------------- //
 function renderDetalles() {
     const selectDetalle = document.getElementById('select-detalle-tarea');
     const contenedorRank = document.getElementById('detalle-ranking');
